@@ -156,6 +156,8 @@
   .cashier form .btn { margin-top: 10px; min-height: 52px; }
   .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
   .dim { opacity: .45; }
+  .validity { margin: 14px 0 0; text-align: center; font-size: .85rem; font-weight: 800; }
+  .policy { margin: 14px 0 0; font-size: .68rem; line-height: 1.4; font-weight: 600; opacity: .6; text-align: center; }
 
   @media (prefers-reduced-motion: reduce) {
     .screen.active, .q-body { animation: none; }
@@ -183,6 +185,14 @@
         <h2 tabindex="-1" id="geo-title"></h2>
         <p id="geo-text"></p>
         <button class="btn" id="btn-geo-retry" type="button">Tentar novamente</button>
+      </div>
+    </section>
+
+    <!-- Limite diário atingido -->
+    <section class="screen" id="s-blocked">
+      <div class="card">
+        <h2 tabindex="-1" id="blocked-title"></h2>
+        <button class="btn" id="btn-show-coupon" type="button" hidden style="margin-top:18px">Ver meu cupom</button>
       </div>
     </section>
 
@@ -260,6 +270,7 @@
         <div id="result-actions">
           <button class="btn" id="btn-copy" type="button">Copiar código</button>
           <p class="muted" style="margin:12px 0 0">Apresente este código ao garçom para resgatar o prêmio.</p>
+          <p class="validity" id="validity"></p>
         </div>
         <p class="sr" id="copy-status" role="status"></p>
 
@@ -274,6 +285,7 @@
           </form>
           <div class="msg" id="cashier-msg" role="alert" hidden style="margin:12px 0 0;text-align:left"></div>
         </div>
+        <p class="policy" id="policy"></p>
       </div>
     </section>
   </main>
@@ -299,10 +311,19 @@ const CONFIG = {
   MAX_DISTANCE_METERS: 2000000000, // TEMPORÁRIO (testes): voltar para 150
 
   COUPON_PREFIX: 'UND',
-  // true: o cupom fica salvo no aparelho e impede nova participação (uso real).
-  // false: cada recarga da página inicia uma nova participação (demonstração/testes).
-  BLOCK_REPEAT_ON_DEVICE: false,
   STORAGE_KEY: 'underline-pesquisa',
+
+  // Limite de 1 participação por aparelho por dia (data local do aparelho, via localStorage).
+  // false: desliga o bloqueio (útil em testes).
+  DAILY_LIMIT_ENABLED: false, // TEMPORÁRIO (testes): voltar para true
+  DAILY_LIMIT_MESSAGE: 'Você já participou hoje. Volte amanhã!',
+
+  // Validade do cupom. Manter igual à constante COUPON_VALIDITY_DAYS do Code.gs
+  // (a regra que vale é a do backend). Placeholders: {dias} e {data} (dd/mm/aaaa).
+  COUPON_VALIDITY_DAYS: 30,
+  COUPON_VALIDITY_NOTICE: 'Válido até {data}',
+  COUPON_EXPIRED_NOTICE: 'Cupom expirado em {data}',
+  COUPON_POLICY_TEXT: 'Válido para sua próxima visita. Não cumulativo com outras promoções ou descontos. Válido por {dias} dias a partir da data de emissão.',
 
   CONSENT_TEXT: 'Ao continuar, você concorda com o uso do seu nome e WhatsApp pelo estabelecimento para fins desta pesquisa e do resgate do prêmio.',
 
@@ -312,14 +333,17 @@ const CONFIG = {
     'Como foi o ambiente, o conforto e a limpeza?'
   ],
 
-  // peso: chance relativa (não precisa somar 100). rotulo: texto curto na fatia.
+  // Cada item é uma fatia. peso: chance relativa da fatia (não precisa somar 100);
+  // prêmios repetidos somam os pesos. rotulo: texto curto na fatia.
   PRIZES: [
-    { nome: '10% de desconto na conta', rotulo: '10% OFF',       peso: 30 },
-    { nome: 'Sobremesa cortesia',       rotulo: 'Sobremesa',     peso: 25 },
-    { nome: 'Entrada cortesia',         rotulo: 'Entrada',       peso: 20 },
-    { nome: 'Drink autoral cortesia',   rotulo: 'Drink autoral', peso: 15 },
-    { nome: '5% de desconto na conta',  rotulo: '5% OFF',        peso: 7 },
-    { nome: '20% de desconto na conta', rotulo: '20% OFF',       peso: 3 }
+    { nome: 'Refrigerante lata', rotulo: 'Refrigerante', peso: 30 },
+    { nome: '5% de desconto',    rotulo: '5% OFF',       peso: 5 },
+    { nome: 'Drink do dia',      rotulo: 'Drink do dia', peso: 10 },
+    { nome: '10% de desconto',   rotulo: '10% OFF',      peso: 5 },
+    { nome: 'Refrigerante lata', rotulo: 'Refrigerante', peso: 30 },
+    { nome: '5% de desconto',    rotulo: '5% OFF',       peso: 5 },
+    { nome: 'Drink do dia',      rotulo: 'Drink do dia', peso: 10 },
+    { nome: '10% de desconto',   rotulo: '10% OFF',      peso: 5 }
   ]
 };
 
@@ -334,7 +358,7 @@ const CONFIG = {
 
   const state = {
     nome: '', whatsapp: '', notas: [null, null, null], qIndex: 0,
-    comentario: '', prize: null, cupom: '', spun: false, used: false
+    comentario: '', prize: null, cupom: '', spun: false, used: false, emitido: ''
   };
 
   /* ---------- Utilidades ---------- */
@@ -361,9 +385,47 @@ const CONFIG = {
   function storageSet(v) {
     try { localStorage.setItem(CONFIG.STORAGE_KEY, JSON.stringify(v)); } catch (e) { /* ignora */ }
   }
+  // Guarda o último cupom emitido; `data` (YYYY-MM-DD, fuso do aparelho) é o dia do último spin bem-sucedido.
   function persist() {
-    if (!CONFIG.BLOCK_REPEAT_ON_DEVICE) return;
-    storageSet({ cupom: state.cupom, premio: state.prize && state.prize.nome, nome: state.nome, used: state.used });
+    storageSet({ data: state.emitido, cupom: state.cupom, premio: state.prize && state.prize.nome, nome: state.nome, used: state.used });
+  }
+
+  /* ---------- Datas ---------- */
+  const pad = n => String(n).padStart(2, '0');
+  const ymd = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+  const fmtBR = d => pad(d.getDate()) + '/' + pad(d.getMonth() + 1) + '/' + d.getFullYear();
+  function addDays(ymdStr, n) {
+    const p = ymdStr.split('-').map(Number);
+    return new Date(p[0], p[1] - 1, p[2] + n);
+  }
+  function fill(tpl, dias, ate) {
+    return tpl.replace(/\{dias\}/g, dias).replace(/\{data\}/g, fmtBR(ate));
+  }
+
+  function participatedToday() {
+    if (!CONFIG.DAILY_LIMIT_ENABLED) return false;
+    const s = storageGet();
+    return !!(s && s.data === ymd(new Date()));
+  }
+
+  function showBlocked() {
+    $('#blocked-title').textContent = CONFIG.DAILY_LIMIT_MESSAGE;
+    const s = storageGet();
+    $('#btn-show-coupon').hidden = !(s && s.cupom);
+    show('s-blocked');
+  }
+
+  function showSavedCoupon() {
+    const s = storageGet();
+    if (!s || !s.cupom) return;
+    state.cupom = s.cupom;
+    state.nome = s.nome || '';
+    state.used = !!s.used;
+    state.emitido = s.data || ymd(new Date());
+    state.prize = { nome: s.premio || '' };
+    state.spun = true;
+    renderResult();
+    show('s-result');
   }
 
   /* ---------- API (Apps Script) ---------- */
@@ -671,11 +733,21 @@ const CONFIG = {
 
   /* ---------- 6. Resultado ---------- */
   function goResult() {
+    if (!state.emitido) state.emitido = ymd(new Date());
+    renderResult();
+    persist();               // registra o dia do spin bem-sucedido (limite diário)
+    show('s-result');
+  }
+
+  function renderResult() {
     $('#prize-name').textContent = state.prize.nome;
     $('#coupon-code').textContent = state.cupom;
+    const dias = CONFIG.COUPON_VALIDITY_DAYS;
+    const ate = addDays(state.emitido, dias);           // válido até o fim desse dia
+    const expirado = ymd(new Date()) > ymd(ate);
+    $('#validity').textContent = fill(expirado ? CONFIG.COUPON_EXPIRED_NOTICE : CONFIG.COUPON_VALIDITY_NOTICE, dias, ate);
+    $('#policy').textContent = fill(CONFIG.COUPON_POLICY_TEXT, dias, ate);
     renderUsed();
-    persist();
-    show('s-result');
   }
 
   function renderUsed() {
@@ -735,7 +807,11 @@ const CONFIG = {
     renderQuestion();
     buildWheel();
 
-    $('#btn-start').addEventListener('click', e => checkLocation(e.currentTarget));
+    $('#btn-start').addEventListener('click', e => {
+      if (participatedToday()) { showBlocked(); return; }   // checa o limite diário junto com a geolocalização
+      checkLocation(e.currentTarget);
+    });
+    $('#btn-show-coupon').addEventListener('click', showSavedCoupon);
     $('#btn-geo-retry').addEventListener('click', e => checkLocation(e.currentTarget));
 
     const phone = $('#in-phone');
@@ -766,18 +842,7 @@ const CONFIG = {
     });
     $('#form-cashier').addEventListener('submit', validateCoupon);
 
-    // Restaura o cupom já emitido neste aparelho (só quando o bloqueio está ativo).
-    const saved = CONFIG.BLOCK_REPEAT_ON_DEVICE ? storageGet() : null;
-    if (saved && saved.cupom) {
-      state.cupom = saved.cupom;
-      state.nome = saved.nome || '';
-      state.used = !!saved.used;
-      state.prize = { nome: saved.premio || '' };
-      state.spun = true;
-      goResult();
-    } else {
-      show('s-welcome');
-    }
+    show('s-welcome');
   }
 
   init();

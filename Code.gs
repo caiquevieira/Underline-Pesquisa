@@ -9,6 +9,10 @@
 // ---- Configuração por cliente -------------------------------------------
 var CASHIER_PASSWORD = '1234';        // Trocar por cliente
 var SHEET_NAME = '';                  // Vazio = primeira aba da planilha
+var TIMEZONE = 'America/Sao_Paulo';
+// Validade do cupom em dias, contada a partir da data de emissão (Data/Hora da linha).
+// Vale até o fim do último dia. Manter igual a CONFIG.COUPON_VALIDITY_DAYS do index.html.
+var COUPON_VALIDITY_DAYS = 30;
 var STATUS_PENDING = 'Pendente';
 var STATUS_DONE = 'Concluído';
 
@@ -109,6 +113,7 @@ function validate_(b) {
   var status = String(row[COL.STATUS - 1]).trim();
 
   if (status === STATUS_DONE) return { ok: false, error: 'Cupom já utilizado' };
+  if (isExpired_(row[COL.DATA - 1])) return { ok: false, error: 'Cupom expirado' };
   if (status !== STATUS_PENDING) return { ok: false, error: 'Status do cupom inválido' };
 
   sheet.getRange(rowIndex, COL.STATUS).setValue(STATUS_DONE);
@@ -136,6 +141,27 @@ function findRow_(sheet, cupom) {
     if (String(ids[i][0]).trim().toUpperCase() === cupom) return i + 2;
   }
   return 0;
+}
+
+/** true se hoje (fuso TIMEZONE) passou do último dia de validade. Sem data legível, não expira. */
+function isExpired_(issued) {
+  var d = toDate_(issued);
+  if (!d) return false;
+  return dayNumber_(new Date()) - dayNumber_(d) > COUPON_VALIDITY_DAYS;
+}
+
+function dayNumber_(d) {
+  var p = Utilities.formatDate(d, TIMEZONE, 'yyyy-MM-dd').split('-');
+  return Date.UTC(+p[0], +p[1] - 1, +p[2]) / 86400000;
+}
+
+function toDate_(v) {
+  if (v instanceof Date) return isNaN(v.getTime()) ? null : v;
+  var s = String(v == null ? '' : v).trim();
+  var m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})/);            // dd/MM/yyyy [HH:mm]
+  if (m) return new Date(+m[3], +m[2] - 1, +m[1], 12);
+  var d = new Date(s);
+  return isNaN(d.getTime()) ? null : d;
 }
 
 function str_(v, max) {

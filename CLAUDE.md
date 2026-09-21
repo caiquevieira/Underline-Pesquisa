@@ -39,14 +39,20 @@ Não existe mais página separada de caixa — decisão explícita: usar senha s
 
 Pesos definem a chance real de cada prêmio — **não precisam corresponder ao tamanho visual da fatia** (fatias podem ser todas do mesmo tamanho visualmente; o sorteio é por peso, e a animação apenas gira até a fatia sorteada). Sortear primeiro o prêmio (random ponderado), só depois calcular o ângulo de parada.
 
-| Prêmio | Peso (%) |
-|---|---|
-| 10% de desconto na conta | 30 |
-| Sobremesa cortesia | 25 |
-| Entrada cortesia | 20 |
-| Drink autoral cortesia | 15 |
-| 5% de desconto na conta | 7 |
-| 20% de desconto na conta | 3 |
+Cada item de `CONFIG.PRIZES` é uma fatia (`nome`, `rotulo` curto, `peso`); prêmios repetidos somam os pesos. **Configuração atual (8 fatias, soma 100), nesta ordem** — sem fatias iguais adjacentes:
+
+| Fatia | Prêmio | Peso |
+|---|---|---|
+| 1 | Refrigerante lata | 30 |
+| 2 | 5% de desconto | 5 |
+| 3 | Drink do dia | 10 |
+| 4 | 10% de desconto | 5 |
+| 5 | Refrigerante lata | 30 |
+| 6 | 5% de desconto | 5 |
+| 7 | Drink do dia | 10 |
+| 8 | 10% de desconto | 5 |
+
+Chance total por prêmio: Refrigerante 60%, Drink do dia 20%, 5% 10%, 10% 10%.
 
 Nunca incluir uma fatia "sem prêmio" — a promessa da tela de boas-vindas é prêmio garantido.
 
@@ -55,6 +61,20 @@ Nunca incluir uma fatia "sem prêmio" — a promessa da tela de boas-vindas é p
 - Formato: `UND-XXXX`, 4 caracteres alfanuméricos maiúsculos, gerados no client-side.
 - Excluir caracteres ambíguos do gerador (`O`/`0`, `I`/`1`) para reduzir erro de leitura na hora do resgate.
 - Gerado no momento em que a roleta sorteia o prêmio (antes da animação terminar).
+
+## Limite diário por aparelho
+
+- `CONFIG.DAILY_LIMIT_ENABLED` (desliga em testes) e `CONFIG.DAILY_LIMIT_MESSAGE` ("Você já participou hoje. Volte amanhã!").
+- Após um spin bem-sucedido (prêmio registrado no webhook), o `localStorage` guarda a data local do aparelho (`YYYY-MM-DD`) e o último cupom.
+- No clique em "Começar agora", **antes** da geolocalização: se a data guardada for hoje, mostra a mensagem e bloqueia a pesquisa. A tela de bloqueio oferece "Ver meu cupom" (último cupom, com validade e campo do estabelecimento).
+- Limitação: limpar dados do navegador ou usar aba anônima contorna o limite; é barreira contra uso casual, não antifraude. Só o último cupom fica guardado no aparelho.
+
+## Validade e políticas do cupom
+
+- `CONFIG.COUPON_VALIDITY_DAYS` (30) e, no `Code.gs`, a constante `COUPON_VALIDITY_DAYS` — **manter as duas iguais**; a regra que vale é a do backend.
+- O cupom vale até o fim do último dia, contado a partir da data de emissão (Data/Hora da linha), no fuso `TIMEZONE` do `Code.gs` (`America/Sao_Paulo`).
+- `validate` verifica, nesta ordem: senha, cupom existe, já utilizado, **expirado** (`"Cupom expirado"`), status válido.
+- A tela do cupom mostra "Válido até dd/mm/aaaa" e um texto de políticas discreto (`CONFIG.COUPON_POLICY_TEXT`, com `{dias}`): "Válido para sua próxima visita. Não cumulativo com outras promoções ou descontos. Válido por 30 dias a partir da data de emissão."
 
 ## Geolocalização — restringir participação à proximidade do restaurante
 
