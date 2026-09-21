@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#FFD100">
+<title>Pesquisa de Satisfação</title>
+<style>
+  :root {
+    --gold: #FFD100;
+    --black: #000000;
+    --white: #FFFFFF;
+    --font: "Avenir Next", "Montserrat", "Segoe UI", "Helvetica Neue", Arial, system-ui, sans-serif;
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    min-height: 100dvh;
+    background: var(--gold);
+    color: var(--black);
+    font-family: var(--font);
+    font-weight: 700;
+    line-height: 1.35;
+    overflow-x: hidden;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .app {
+    width: 100%;
+    max-width: 440px;
+    min-height: 100vh;
+    min-height: 100dvh;
+    margin: 0 auto;
+    padding: max(16px, env(safe-area-inset-top)) 16px max(20px, env(safe-area-inset-bottom));
+    display: flex;
+    flex-direction: column;
+  }
+  .brand {
+    text-align: center;
+    padding: 6px 0 14px;
+    min-height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .brand img { max-height: 48px; max-width: 70%; object-fit: contain; }
+  .brand span {
+    font-weight: 900;
+    font-size: 1.05rem;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+  }
+  main { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+
+  .screen { display: none; }
+  .screen.active { display: block; animation: enter .35s ease both; }
+  @keyframes enter {
+    from { opacity: 0; transform: translateY(14px); }
+    to   { opacity: 1; transform: none; }
+  }
+
+  .card {
+    background: var(--white);
+    border: 2px solid var(--black);
+    border-radius: 28px;
+    padding: 24px 20px;
+  }
+  h1, h2 { margin: 0 0 10px; font-weight: 900; letter-spacing: -.02em; line-height: 1.1; outline: none; }
+  h1 { font-size: 1.95rem; }
+  h2 { font-size: 1.55rem; }
+  p { margin: 0 0 16px; font-weight: 600; }
+  .eyebrow {
+    font-size: .75rem; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; margin-bottom: 8px;
+  }
+  .muted { font-size: .85rem; font-weight: 600; opacity: .75; }
+
+  .btn {
+    display: block; width: 100%; min-height: 58px; padding: 14px 24px;
+    border: 2px solid var(--black); border-radius: 999px;
+    background: var(--black); color: var(--gold);
+    font: inherit; font-weight: 900; font-size: 1.05rem; letter-spacing: .02em;
+    cursor: pointer; transition: transform .12s ease, opacity .2s ease;
+  }
+  .btn:active:not(:disabled) { transform: scale(.96); }
+  .btn:disabled { opacity: .3; cursor: not-allowed; }
+  .btn.ghost { background: var(--white); color: var(--black); }
+  .btn + .btn { margin-top: 12px; }
+
+  .link {
+    background: none; border: 0; padding: 6px 0; font: inherit; font-size: .8rem; font-weight: 600;
+    color: var(--black); text-decoration: underline; cursor: pointer; opacity: .7;
+  }
+
+  label { display: block; font-size: .8rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; margin-bottom: 6px; }
+  .field { margin-bottom: 18px; }
+  input, textarea {
+    width: 100%; padding: 14px 18px; border: 2px solid var(--black); border-radius: 18px;
+    background: var(--white); color: var(--black); font: inherit; font-size: 16px; font-weight: 700;
+    outline: none; -webkit-appearance: none; appearance: none;
+  }
+  textarea { resize: none; min-height: 130px; }
+  input:focus, textarea:focus { box-shadow: 0 0 0 3px var(--gold), 0 0 0 5px var(--black); }
+  input::placeholder, textarea::placeholder { color: rgba(0,0,0,.4); font-weight: 600; }
+  .form-consent { font-size: .75rem; font-weight: 600; opacity: .7; margin: -6px 0 18px; }
+
+  /* CSAT */
+  .progress { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
+  .dots { display: flex; gap: 6px; }
+  .dot { width: 26px; height: 6px; border-radius: 3px; background: rgba(0,0,0,.15); }
+  .dot.on { background: var(--black); }
+  .q-body { animation: enter .3s ease both; }
+  .stars { display: flex; justify-content: space-between; gap: 4px; margin: 22px 0 10px; }
+  .star {
+    flex: 1; max-width: 56px; aspect-ratio: 1; padding: 0; border: 0; background: none; cursor: pointer;
+    transition: transform .12s ease;
+  }
+  .star:active { transform: scale(.88); }
+  .star svg { width: 100%; height: 100%; display: block; }
+  .star path { fill: var(--white); stroke: var(--black); stroke-width: 1.8; stroke-linejoin: round; transition: fill .15s ease; }
+  .star.on path { fill: var(--black); }
+  .scale-labels { display: flex; justify-content: space-between; font-size: .75rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+
+  /* Roleta */
+  .wheel-wrap { position: relative; width: min(100%, 300px); aspect-ratio: 1; margin: 18px auto 22px; }
+  .wheel-rotor { width: 100%; height: 100%; will-change: transform; }
+  .wheel-rotor svg { width: 100%; height: 100%; display: block; }
+  .wheel-rotor svg text { font-family: var(--font); font-weight: 900; }
+  .pointer {
+    position: absolute; top: -12px; left: 50%; transform: translateX(-50%); z-index: 2;
+    width: 0; height: 0; border-left: 15px solid transparent; border-right: 15px solid transparent; border-top: 30px solid var(--black);
+    filter: drop-shadow(0 0 0 var(--white));
+  }
+  .pointer::after {
+    content: ""; position: absolute; left: -6px; top: -27px; width: 12px; height: 12px; border-radius: 50%; background: var(--gold);
+  }
+
+  /* Mensagens */
+  .msg {
+    margin: 0 0 14px; padding: 12px 16px; border-radius: 16px; background: var(--black); color: var(--white);
+    font-size: .9rem; font-weight: 700;
+  }
+  .msg.ok { background: var(--gold); color: var(--black); border: 2px solid var(--black); }
+
+  /* Cupom */
+  .coupon {
+    border: 3px dashed var(--black); border-radius: 22px; padding: 16px 12px; text-align: center; margin: 4px 0 16px;
+  }
+  .coupon small { display: block; font-size: .7rem; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; margin-bottom: 4px; }
+  .coupon strong { display: block; font-size: clamp(2rem, 11vw, 2.8rem); font-weight: 900; letter-spacing: .08em; }
+  .prize-name { font-size: 1.7rem; }
+  .cashier { margin-top: 18px; padding-top: 10px; border-top: 2px solid rgba(0,0,0,.1); text-align: center; }
+  .cashier form { margin-top: 10px; text-align: left; }
+  .cashier form .btn { margin-top: 10px; min-height: 52px; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .dim { opacity: .45; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .screen.active, .q-body { animation: none; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="brand" id="brand"></header>
+
+  <main>
+    <!-- 1. Boas-vindas -->
+    <section class="screen" id="s-welcome">
+      <div class="card">
+        <h1 tabindex="-1">Sua opinião vale um prêmio garantido.</h1>
+        <p>Responda a algumas perguntas rápidas e gire a roleta. Todo participante ganha um prêmio.</p>
+        <button class="btn" id="btn-start" type="button">Começar agora</button>
+        <p class="muted" style="margin:14px 0 0">Para participar, você precisa estar no estabelecimento.</p>
+      </div>
+    </section>
+
+    <!-- Bloqueio / erro de geolocalização -->
+    <section class="screen" id="s-geo">
+      <div class="card">
+        <h2 tabindex="-1" id="geo-title"></h2>
+        <p id="geo-text"></p>
+        <button class="btn" id="btn-geo-retry" type="button">Tentar novamente</button>
+      </div>
+    </section>
+
+    <!-- 2. Identificação -->
+    <section class="screen" id="s-identify">
+      <form class="card" id="form-identify" novalidate>
+        <h2 tabindex="-1">Como podemos chamar você?</h2>
+        <p>Usaremos seus dados apenas para identificar o seu prêmio.</p>
+        <div class="field">
+          <label for="in-name">Nome</label>
+          <input id="in-name" type="text" autocomplete="name" autocapitalize="words" maxlength="80" placeholder="Seu nome">
+        </div>
+        <div class="field">
+          <label for="in-phone">WhatsApp</label>
+          <input id="in-phone" type="tel" inputmode="numeric" autocomplete="tel-national" maxlength="15" placeholder="(11) 91234-5678">
+        </div>
+        <p class="form-consent" id="consent"></p>
+        <button class="btn" id="btn-identify" type="submit" disabled>Continuar</button>
+      </form>
+    </section>
+
+    <!-- 3. CSAT -->
+    <section class="screen" id="s-csat">
+      <div class="card">
+        <div class="progress">
+          <span class="eyebrow" id="q-progress" style="margin:0"></span>
+          <div class="dots" id="q-dots"></div>
+        </div>
+        <div class="q-body" id="q-body">
+          <h2 tabindex="-1" id="q-text"></h2>
+          <div class="stars" id="q-stars" role="radiogroup" aria-label="Nota de 1 a 5"></div>
+          <div class="scale-labels"><span>Ruim</span><span>Excelente</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4. Feedback aberto -->
+    <section class="screen" id="s-feedback">
+      <div class="card">
+        <h2 tabindex="-1">O que achou que podíamos ter feito diferente hoje?</h2>
+        <p class="muted">Opcional.</p>
+        <div class="field">
+          <label for="in-comment" class="sr">Comentário</label>
+          <textarea id="in-comment" maxlength="500" placeholder="Escreva aqui, se quiser"></textarea>
+        </div>
+        <button class="btn" id="btn-comment" type="button">Continuar</button>
+        <button class="btn ghost" id="btn-skip" type="button">Pular</button>
+      </div>
+    </section>
+
+    <!-- 5. Roleta -->
+    <section class="screen" id="s-wheel">
+      <div class="card" style="text-align:center">
+        <h2 tabindex="-1">Gire a roleta</h2>
+        <p style="margin:0">Seu prêmio está garantido.</p>
+        <div class="wheel-wrap">
+          <div class="pointer"></div>
+          <div class="wheel-rotor" id="wheel-rotor"></div>
+        </div>
+        <div class="msg" id="wheel-msg" role="status" hidden></div>
+        <button class="btn" id="btn-spin" type="button">Girar a roleta</button>
+        <button class="btn ghost" id="btn-reg-retry" type="button" hidden>Tentar novamente</button>
+      </div>
+    </section>
+
+    <!-- 6. Resultado / Cupom -->
+    <section class="screen" id="s-result">
+      <div class="card">
+        <p class="eyebrow">Seu prêmio</p>
+        <h2 class="prize-name" id="prize-name" tabindex="-1"></h2>
+        <div class="coupon">
+          <small>Código do cupom</small>
+          <strong id="coupon-code"></strong>
+        </div>
+        <div id="result-actions">
+          <button class="btn" id="btn-copy" type="button">Copiar código</button>
+          <p class="muted" style="margin:12px 0 0">Apresente este código ao garçom para resgatar o prêmio.</p>
+        </div>
+        <p class="sr" id="copy-status" role="status"></p>
+
+        <div class="msg ok" id="used-panel" hidden></div>
+
+        <div class="cashier" id="cashier">
+          <button class="link" id="cashier-toggle" type="button" aria-expanded="false">Uso do estabelecimento</button>
+          <form id="form-cashier" hidden novalidate>
+            <label for="in-pass">Senha</label>
+            <input id="in-pass" type="password" autocomplete="off" placeholder="Senha do estabelecimento">
+            <button class="btn" id="btn-validate" type="submit">Validar cupom</button>
+          </form>
+          <div class="msg" id="cashier-msg" role="alert" hidden style="margin:12px 0 0;text-align:left"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<noscript><p style="padding:24px;text-align:center">Ative o JavaScript para participar da pesquisa.</p></noscript>
+
+<script>
+/* =========================================================================
+   CONFIG — todo dado específico de cliente vive aqui.
+   A senha do caixa NÃO fica neste arquivo: é validada no Code.gs
+   (constante CASHIER_PASSWORD).
+   ========================================================================= */
+const CONFIG = {
+  RESTAURANT_NAME: 'Restaurante Exemplo',
+  LOGO_DATA_URI: '',        // data:image/...;base64,... (preferencial)
+  LOGO_URL: '',             // alternativa; se ambos vazios, usa o nome em texto
+  WEBHOOK_URL: 'https://script.google.com/macros/s/AKfycbyIAAEirtDqZNlXj1l_MQBVrFzd7qK-WpoKiipm5VXhiHXGFb6pMQRCZ83KivYrpKCo/exec',
+
+  // Geolocalização — SUBSTITUIR pelas coordenadas do restaurante.
+  RESTAURANT_LAT: -23.5505,
+  RESTAURANT_LNG: -46.6333,
+  MAX_DISTANCE_METERS: 150,
+
+  COUPON_PREFIX: 'UND',
+  // true: o cupom fica salvo no aparelho e impede nova participação (uso real).
+  // false: cada recarga da página inicia uma nova participação (demonstração/testes).
+  BLOCK_REPEAT_ON_DEVICE: false,
+  STORAGE_KEY: 'underline-pesquisa',
+
+  CONSENT_TEXT: 'Ao continuar, você concorda com o uso do seu nome e WhatsApp pelo estabelecimento para fins desta pesquisa e do resgate do prêmio.',
+
+  QUESTIONS: [
+    'Como foi a qualidade da comida e o sabor?',
+    'Como foi a velocidade e a qualidade do atendimento?',
+    'Como foi o ambiente, o conforto e a limpeza?'
+  ],
+
+  // peso: chance relativa (não precisa somar 100). rotulo: texto curto na fatia.
+  PRIZES: [
+    { nome: '10% de desconto na conta', rotulo: '10% OFF',       peso: 30 },
+    { nome: 'Sobremesa cortesia',       rotulo: 'Sobremesa',     peso: 25 },
+    { nome: 'Entrada cortesia',         rotulo: 'Entrada',       peso: 20 },
+    { nome: 'Drink autoral cortesia',   rotulo: 'Drink autoral', peso: 15 },
+    { nome: '5% de desconto na conta',  rotulo: '5% OFF',        peso: 7 },
+    { nome: '20% de desconto na conta', rotulo: '20% OFF',       peso: 3 }
+  ]
+};
+
+/* ========================================================================= */
+(function () {
+  'use strict';
+
+  const $ = (sel, root) => (root || document).querySelector(sel);
+  const NS = 'http://www.w3.org/2000/svg';
+  const COUPON_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // sem O/0/I/1
+  const PRIZES = CONFIG.PRIZES.filter(p => p && p.peso > 0);
+
+  const state = {
+    nome: '', whatsapp: '', notas: [null, null, null], qIndex: 0,
+    comentario: '', prize: null, cupom: '', spun: false, used: false
+  };
+
+  /* ---------- Utilidades ---------- */
+  function rand() {
+    if (window.crypto && crypto.getRandomValues) return crypto.getRandomValues(new Uint32Array(1))[0] / 4294967296;
+    return Math.random();
+  }
+
+  function show(id) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.toggle('active', s.id === id));
+    window.scrollTo(0, 0);
+    const h = $('#' + id + ' h1, #' + id + ' h2');
+    if (h) h.focus({ preventScroll: true });
+  }
+
+  function setMsg(el, text) {
+    el.textContent = text || '';
+    el.hidden = !text;
+  }
+
+  function storageGet() {
+    try { return JSON.parse(localStorage.getItem(CONFIG.STORAGE_KEY) || 'null'); } catch (e) { return null; }
+  }
+  function storageSet(v) {
+    try { localStorage.setItem(CONFIG.STORAGE_KEY, JSON.stringify(v)); } catch (e) { /* ignora */ }
+  }
+  function persist() {
+    if (!CONFIG.BLOCK_REPEAT_ON_DEVICE) return;
+    storageSet({ cupom: state.cupom, premio: state.prize && state.prize.nome, nome: state.nome, used: state.used });
+  }
+
+  /* ---------- API (Apps Script) ---------- */
+  async function api(payload) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 20000);
+    try {
+      const res = await fetch(CONFIG.WEBHOOK_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // evita preflight CORS
+        body: JSON.stringify(payload),
+        signal: ctrl.signal
+      });
+      return await res.json();
+    } catch (e) {
+      return { ok: false, network: true, error: 'Sem conexão com o servidor. Verifique sua internet e tente novamente.' };
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  /* ---------- Marca ---------- */
+  function initBrand() {
+    document.title = CONFIG.RESTAURANT_NAME + ' — Pesquisa de Satisfação';
+    const brand = $('#brand');
+    const src = CONFIG.LOGO_DATA_URI || CONFIG.LOGO_URL;
+    if (src) {
+      const img = document.createElement('img');
+      img.src = src;
+      img.alt = CONFIG.RESTAURANT_NAME;
+      brand.appendChild(img);
+    } else {
+      const s = document.createElement('span');
+      s.textContent = CONFIG.RESTAURANT_NAME;
+      brand.appendChild(s);
+    }
+    $('#consent').textContent = CONFIG.CONSENT_TEXT;
+  }
+
+  /* ---------- 1. Geolocalização ---------- */
+  function haversine(lat1, lng1, lat2, lng2) {
+    const R = 6371000, rad = Math.PI / 180;
+    const dLat = (lat2 - lat1) * rad, dLng = (lng2 - lng1) * rad;
+    const a = Math.sin(dLat / 2) ** 2 +
+              Math.cos(lat1 * rad) * Math.cos(lat2 * rad) * Math.sin(dLng / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(a));
+  }
+
+  function getPosition() {
+    return new Promise((resolve, reject) => {
+      if (!window.isSecureContext || !('geolocation' in navigator)) return reject({ code: 0 });
+      navigator.geolocation.getCurrentPosition(resolve, reject,
+        { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 });
+    });
+  }
+
+  const GEO_MSGS = {
+    denied:      ['Ative a localização', 'Para participar, permita o acesso à localização do seu aparelho nas configurações do navegador e tente novamente.'],
+    unsupported: ['Localização indisponível', 'Este navegador não consegue verificar a localização. Abra o link em um navegador atualizado, por um endereço seguro (HTTPS).'],
+    unavailable: ['Não foi possível obter sua localização', 'Verifique se o GPS está ativado e tente novamente.'],
+    far:         ['Fora do estabelecimento', 'Essa pesquisa só pode ser respondida dentro do estabelecimento.']
+  };
+
+  function showGeo(kind) {
+    $('#geo-title').textContent = GEO_MSGS[kind][0];
+    $('#geo-text').textContent = GEO_MSGS[kind][1];
+    show('s-geo');
+  }
+
+  async function checkLocation(btn) {
+    const label = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Verificando localização...';
+    try {
+      const pos = await getPosition();
+      const d = haversine(pos.coords.latitude, pos.coords.longitude, CONFIG.RESTAURANT_LAT, CONFIG.RESTAURANT_LNG);
+      if (d <= CONFIG.MAX_DISTANCE_METERS) show('s-identify');
+      else showGeo('far');
+    } catch (e) {
+      showGeo(e.code === 1 ? 'denied' : e.code === 0 ? 'unsupported' : 'unavailable');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = label;
+    }
+  }
+
+  /* ---------- 2. Identificação ---------- */
+  function maskPhone(digits) {
+    const d = digits.slice(0, 11);
+    if (d.length <= 2) return d.length ? '(' + d : '';
+    if (d.length <= 7) return '(' + d.slice(0, 2) + ') ' + d.slice(2);
+    return '(' + d.slice(0, 2) + ') ' + d.slice(2, 7) + '-' + d.slice(7);
+  }
+  const PHONE_RE = /^\([1-9]\d\) \d{5}-\d{4}$/;
+
+  function validateIdentify() {
+    const ok = $('#in-name').value.trim().length >= 2 && PHONE_RE.test($('#in-phone').value);
+    $('#btn-identify').disabled = !ok;
+    return ok;
+  }
+
+  /* ---------- 3. CSAT ---------- */
+  const STAR_PATH = 'M12 2.6l2.85 5.98 6.55.8-4.8 4.55 1.22 6.5L12 17.2 6.18 20.43l1.22-6.5-4.8-4.55 6.55-.8z';
+  let starLock = false;
+
+  function buildStars() {
+    const wrap = $('#q-stars');
+    for (let v = 1; v <= 5; v++) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'star';
+      b.setAttribute('role', 'radio');
+      b.setAttribute('aria-label', v + ' de 5');
+      b.dataset.value = v;
+      b.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="' + STAR_PATH + '"/></svg>';
+      b.addEventListener('click', () => onStar(v));
+      wrap.appendChild(b);
+    }
+  }
+
+  function renderQuestion() {
+    const total = CONFIG.QUESTIONS.length;
+    $('#q-progress').textContent = 'Pergunta ' + (state.qIndex + 1) + ' de ' + total;
+    $('#q-dots').innerHTML = '';
+    for (let i = 0; i < total; i++) {
+      const d = document.createElement('span');
+      d.className = 'dot' + (i <= state.qIndex ? ' on' : '');
+      $('#q-dots').appendChild(d);
+    }
+    $('#q-text').textContent = CONFIG.QUESTIONS[state.qIndex];
+    paintStars(0);
+    const body = $('#q-body');
+    body.style.animation = 'none';
+    void body.offsetWidth; // reinicia a animação
+    body.style.animation = '';
+  }
+
+  function paintStars(n) {
+    document.querySelectorAll('#q-stars .star').forEach(s => {
+      const on = +s.dataset.value <= n;
+      s.classList.toggle('on', on);
+      s.setAttribute('aria-checked', on && +s.dataset.value === n ? 'true' : 'false');
+    });
+  }
+
+  function onStar(v) {
+    if (starLock) return;
+    starLock = true;
+    state.notas[state.qIndex] = v;
+    paintStars(v);
+    setTimeout(() => {
+      if (state.qIndex < CONFIG.QUESTIONS.length - 1) {
+        state.qIndex++;
+        renderQuestion();
+      } else {
+        show('s-feedback');
+      }
+      starLock = false;
+    }, 400);
+  }
+
+  /* ---------- 5. Roleta ---------- */
+  const SLICE_COLORS = [
+    { bg: '#000000', fg: '#FFD100' },
+    { bg: '#FFFFFF', fg: '#000000' },
+    { bg: '#FFD100', fg: '#000000' }
+  ];
+
+  function pt(deg, r) {
+    const a = deg * Math.PI / 180;
+    return [+(r * Math.sin(a)).toFixed(3), +(-r * Math.cos(a)).toFixed(3)];
+  }
+
+  function svgEl(name, attrs) {
+    const el = document.createElementNS(NS, name);
+    for (const k in attrs) el.setAttribute(k, attrs[k]);
+    return el;
+  }
+
+  function buildWheel() {
+    const R = 100, n = PRIZES.length, step = 360 / n;
+    const svg = svgEl('svg', { viewBox: '-102 -102 204 204', 'aria-hidden': 'true' });
+
+    PRIZES.forEach((p, i) => {
+      let ci = i % 3;
+      if (i === n - 1 && n > 1 && ci === 0) ci = 1; // evita cor igual à da primeira fatia
+      const c = SLICE_COLORS[ci];
+      let shape;
+      if (n === 1) {
+        shape = svgEl('circle', { r: R, fill: c.bg });
+      } else {
+        const [x1, y1] = pt(i * step, R), [x2, y2] = pt((i + 1) * step, R);
+        shape = svgEl('path', {
+          d: 'M0 0 L' + x1 + ' ' + y1 + ' A' + R + ' ' + R + ' 0 ' + (step > 180 ? 1 : 0) + ' 1 ' + x2 + ' ' + y2 + ' Z',
+          fill: c.bg, stroke: '#000', 'stroke-width': 1.5
+        });
+      }
+      svg.appendChild(shape);
+
+      const label = p.rotulo || p.nome;
+      const fs = Math.min(11, 60 / (label.length * 0.62));
+      const mid = (i + 0.5) * step;
+      const flip = mid > 180;                       // metade esquerda: texto não fica de cabeça para baixo
+      const t = svgEl('text', {
+        x: flip ? -(R - 10) : R - 10, y: 0, 'text-anchor': flip ? 'start' : 'end', 'dominant-baseline': 'central',
+        fill: c.fg, 'font-size': fs.toFixed(2),
+        transform: 'rotate(' + (flip ? mid + 90 : mid - 90) + ')'
+      });
+      t.textContent = label;
+      svg.appendChild(t);
+    });
+
+    svg.appendChild(svgEl('circle', { r: 99, fill: 'none', stroke: '#000', 'stroke-width': 4 }));
+    svg.appendChild(svgEl('circle', { r: 13, fill: '#000' }));
+    svg.appendChild(svgEl('circle', { r: 5, fill: '#FFD100' }));
+    $('#wheel-rotor').appendChild(svg);
+  }
+
+  function pickPrizeIndex() {
+    const total = PRIZES.reduce((s, p) => s + p.peso, 0);
+    let r = rand() * total;
+    for (let i = 0; i < PRIZES.length; i++) {
+      r -= PRIZES[i].peso;
+      if (r < 0) return i;
+    }
+    return PRIZES.length - 1;
+  }
+
+  function animateTo(idx) {
+    return new Promise(resolve => {
+      const n = PRIZES.length, step = 360 / n;
+      const center = (idx + 0.5) * step;
+      const jitter = (rand() - 0.5) * step * 0.7;   // não para sempre no centro da fatia
+      const target = 360 * 5 + (360 - center) + jitter;
+      const reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const ms = reduce ? 1200 : 4800;
+      const rotor = $('#wheel-rotor');
+      let done = false;
+      const end = () => { if (!done) { done = true; resolve(); } };
+      rotor.addEventListener('transitionend', end, { once: true });
+      setTimeout(end, ms + 400);
+      void rotor.offsetWidth;
+      rotor.style.transition = 'transform ' + ms + 'ms cubic-bezier(.17,.67,.12,1)';
+      rotor.style.transform = 'rotate(' + target.toFixed(2) + 'deg)';
+    });
+  }
+
+  /* ---------- Cupom ---------- */
+  function generateCoupon() {
+    let code = '';
+    for (let i = 0; i < 4; i++) code += COUPON_ALPHABET[Math.floor(rand() * COUPON_ALPHABET.length)];
+    return CONFIG.COUPON_PREFIX + '-' + code;
+  }
+
+  async function register() {
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const r = await api({
+        action: 'register',
+        cupom: state.cupom,
+        nome: state.nome,
+        whatsapp: state.whatsapp,
+        notaComida: state.notas[0],
+        notaAtendimento: state.notas[1],
+        notaAmbiente: state.notas[2],
+        comentario: state.comentario,
+        premio: state.prize.nome
+      });
+      if (r.ok) return r;
+      if (r.code === 'DUPLICATE') { state.cupom = generateCoupon(); continue; } // colisão real: novo código
+      return r;
+    }
+    return { ok: false, error: 'Não foi possível registrar o prêmio. Tente novamente.' };
+  }
+
+  async function spin() {
+    if (state.spun) return;
+    state.spun = true;
+    $('#btn-spin').disabled = true;
+    setMsg($('#wheel-msg'), '');
+
+    const idx = pickPrizeIndex();
+    state.prize = PRIZES[idx];
+    state.cupom = generateCoupon();            // gerado no sorteio, antes do fim da animação
+
+    const [, r] = await Promise.all([animateTo(idx), register()]);
+    if (r.ok) goResult();
+    else regFailed(r.error);
+  }
+
+  function regFailed(msg) {
+    setMsg($('#wheel-msg'), msg || 'Não foi possível registrar o prêmio.');
+    $('#btn-spin').hidden = true;
+    $('#btn-reg-retry').hidden = false;
+  }
+
+  async function retryRegister() {
+    const b = $('#btn-reg-retry');
+    b.disabled = true;
+    setMsg($('#wheel-msg'), 'Registrando seu prêmio...');
+    const r = await register();
+    b.disabled = false;
+    if (r.ok) goResult();
+    else regFailed(r.error);
+  }
+
+  /* ---------- 6. Resultado ---------- */
+  function goResult() {
+    $('#prize-name').textContent = state.prize.nome;
+    $('#coupon-code').textContent = state.cupom;
+    renderUsed();
+    persist();
+    show('s-result');
+  }
+
+  function renderUsed() {
+    $('#used-panel').hidden = !state.used;
+    $('#cashier').hidden = state.used;
+    $('#result-actions').classList.toggle('dim', state.used);
+    if (state.used) $('#used-panel').textContent = 'Cupom utilizado. Este código não pode ser usado novamente.';
+  }
+
+  async function copyCode() {
+    const btn = $('#btn-copy');
+    let ok = false;
+    try {
+      await navigator.clipboard.writeText(state.cupom);
+      ok = true;
+    } catch (e) {
+      const ta = document.createElement('textarea');
+      ta.value = state.cupom;
+      ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      try { ok = document.execCommand('copy'); } catch (e2) { ok = false; }
+      ta.remove();
+    }
+    btn.textContent = ok ? 'Código copiado' : 'Não foi possível copiar';
+    $('#copy-status').textContent = btn.textContent;
+    setTimeout(() => { btn.textContent = 'Copiar código'; }, 2000);
+  }
+
+  async function validateCoupon(e) {
+    e.preventDefault();
+    const pass = $('#in-pass').value;
+    const msg = $('#cashier-msg');
+    if (!pass) { setMsg(msg, 'Digite a senha.'); return; }
+    const btn = $('#btn-validate');
+    btn.disabled = true;
+    btn.textContent = 'Validando...';
+    setMsg(msg, '');
+    const r = await api({ action: 'validate', cupom: state.cupom, senha: pass });
+    btn.disabled = false;
+    btn.textContent = 'Validar cupom';
+    if (r.ok) {
+      state.used = true;
+      $('#in-pass').value = '';
+      persist();
+      renderUsed();
+      $('#used-panel').textContent = 'Cupom validado: ' + (r.premio || state.prize.nome) + (r.nome ? ' — ' + r.nome : '') + '.';
+    } else {
+      setMsg(msg, r.error || 'Não foi possível validar o cupom.');
+    }
+  }
+
+  /* ---------- Inicialização ---------- */
+  function init() {
+    initBrand();
+    buildStars();
+    renderQuestion();
+    buildWheel();
+
+    $('#btn-start').addEventListener('click', e => checkLocation(e.currentTarget));
+    $('#btn-geo-retry').addEventListener('click', e => checkLocation(e.currentTarget));
+
+    const phone = $('#in-phone');
+    phone.addEventListener('input', () => { phone.value = maskPhone(phone.value.replace(/\D/g, '')); validateIdentify(); });
+    $('#in-name').addEventListener('input', validateIdentify);
+    $('#form-identify').addEventListener('submit', e => {
+      e.preventDefault();
+      if (!validateIdentify()) return;
+      state.nome = $('#in-name').value.trim();
+      state.whatsapp = phone.value;
+      state.qIndex = 0;
+      renderQuestion();
+      show('s-csat');
+    });
+
+    $('#btn-comment').addEventListener('click', () => { state.comentario = $('#in-comment').value.trim(); show('s-wheel'); });
+    $('#btn-skip').addEventListener('click', () => { state.comentario = ''; show('s-wheel'); });
+
+    $('#btn-spin').addEventListener('click', spin);
+    $('#btn-reg-retry').addEventListener('click', retryRegister);
+
+    $('#btn-copy').addEventListener('click', copyCode);
+    $('#cashier-toggle').addEventListener('click', e => {
+      const form = $('#form-cashier');
+      form.hidden = !form.hidden;
+      e.currentTarget.setAttribute('aria-expanded', String(!form.hidden));
+      if (!form.hidden) $('#in-pass').focus();
+    });
+    $('#form-cashier').addEventListener('submit', validateCoupon);
+
+    // Restaura o cupom já emitido neste aparelho (só quando o bloqueio está ativo).
+    const saved = CONFIG.BLOCK_REPEAT_ON_DEVICE ? storageGet() : null;
+    if (saved && saved.cupom) {
+      state.cupom = saved.cupom;
+      state.nome = saved.nome || '';
+      state.used = !!saved.used;
+      state.prize = { nome: saved.premio || '' };
+      state.spun = true;
+      goResult();
+    } else {
+      show('s-welcome');
+    }
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>
