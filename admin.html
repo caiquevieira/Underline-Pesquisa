@@ -128,8 +128,14 @@
     display: grid;
     grid-template-columns: 1.4fr 1fr;
     gap: 16px;
-    margin-bottom: 16px;
   }
+  /* Espaçamento vertical entre TODOS os blocos de 1ª linha do painel (linhas de 2 colunas
+     e painéis avulsos de largura cheia), num lugar só — >, não .panel sozinho, pra não
+     duplicar a margem dos .panel que já vivem DENTRO de um .panel-grid (esses são
+     esticados pelo grid e não devem ganhar margem própria). Bug real corrigido aqui: o
+     painel avulso "Nota média por categoria" não tinha margem nenhuma e ficava colado
+     no bloco seguinte, sem respiro. */
+  #dashboard > .panel-grid, #dashboard > .panel { margin-bottom: 16px; }
   /* Duas colunas exatamente iguais (a .panel-grid padrão é 1.4fr/1fr) — usada na seção de
      Promotores/Neutros/Detratores, onde os dois cards precisam ficar simétricos. */
   .panel-grid-even { grid-template-columns: 1fr 1fr; }
