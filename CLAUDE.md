@@ -156,6 +156,17 @@ Enviar o `fetch` do front-end com `Content-Type: text/plain;charset=utf-8` (não
 
 Criar cabeçalhos automaticamente (`HEADERS` array) se a aba estiver vazia na primeira execução — mas como a planilha e o deployment **já existem**, isso é só uma salvaguarda, não o caminho principal.
 
+## Dados de demonstração — `gerarDadosDemo()`
+
+Função só-manual no `Code.gs` (não passa por `doPost`, não é acionável pelo webhook). Roda escolhendo `gerarDadosDemo` no seletor de função do editor do Apps Script e clicando em Executar — igual ao passo 3 do gatilho diário acima.
+
+- **Grava 150 linhas sintéticas na planilha em uso** (produção, se for a planilha do cliente), nomeadas `Cliente Demo 001` a `Cliente Demo 150` para serem filtradas e apagadas depois.
+- Datas espalhadas aleatoriamente nos últimos 90 dias, com horário variado dentro do dia (janela 11h–23h). Notas com tendência de melhora ao longo do tempo (interpolação linear entre médias-alvo calibradas para a média das 450 notas geradas ficar perto de 4,5).
+- Status decidido pela idade da linha **usando a mesma regra de dias-calendário do `isExpired_`** (não uma diferença crua de milissegundos, que pode discordar do que `validate_` calcularia depois para a mesma linha): mais de `COUPON_VALIDITY_DAYS` → 70% Concluído / 30% Vencido; até `COUPON_VALIDITY_DAYS` → 50% Pendente / 50% Concluído.
+- Prêmio sorteado com os mesmos pesos agregados de `CONFIG.PRIZES` do `index.html` (Refrigerante lata 60%, Drink do dia 20%, 5% e 10% de desconto 10% cada) — **se os prêmios do `CONFIG.PRIZES` mudarem, atualizar `DEMO_PRIZES` dentro de `gerarDadosDemo()` junto**, os dois não são lidos de um lugar só.
+- Escreve tudo em um único lote (`setValues`), não 150 chamadas de `appendRow`. Cupom gerado sem colidir com nenhum código já existente na planilha (inclusive linhas de teste anteriores).
+- Ao terminar, loga e devolve um resumo (`Logger.log`, visível em Execuções): média das 450 notas, contagem de linhas por status, confirmação de que não há cupom duplicado no lote.
+
 ## Definition of Done
 
 - [ ] Roda 100% offline após o carregamento inicial (só depende de rede para o `fetch` final, não para renderizar a UI).

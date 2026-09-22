@@ -179,6 +179,190 @@ function marcarCuponsVencidos() {
   }
 }
 
+// ---- Dados de demonstração (só manual) -------------------------------------
+
+/**
+ * SOMENTE MANUAL — não passa por doPost. Rode escolhendo "gerarDadosDemo" no seletor de
+ * função do editor do Apps Script e clicando em Executar.
+ *
+ * Gera 150 linhas sintéticas ("Cliente Demo 001" a "150") para popular dashboards de
+ * demonstração, com datas espalhadas nos últimos 90 dias e uma tendência de melhora nas
+ * notas ao longo do tempo (interpolação linear entre médias-alvo calibradas para a média
+ * final das 450 notas ficar perto de 4,5 — ver NOTE_SIGMA/NOTE_JITTER/MEAN_AT_*D). Escreve
+ * tudo em UM único lote (setValues), não em 150 chamadas de appendRow. Loga e devolve um
+ * resumo: média das 450 notas, contagem de linhas por status, e confirmação de que não há
+ * cupom duplicado no lote gerado.
+ */
+function gerarDadosDemo() {
+  var N = 150;
+  var HORIZON_DAYS = 90;
+  // Calibrados via simulação (ver histórico do projeto) para a média das 450 notas
+  // convergir perto de 4,5 mesmo variando de execução para execução.
+  var NOTE_SIGMA = 0.66;    // largura da distribuição de cada nota em torno da média-alvo
+  var NOTE_JITTER = 0.3;    // variação independente entre as 3 perguntas da mesma linha
+  var MEAN_AT_90D = 4.23;   // média-alvo no dia mais antigo (90 dias atrás)
+  var MEAN_AT_0D = 5.2;     // média-alvo no dia mais recente (hoje)
+
+  // Mesmos pesos (agregados) de CONFIG.PRIZES no index.html.
+  var DEMO_PRIZES = [
+    { nome: 'Refrigerante lata', peso: 60 },
+    { nome: 'Drink do dia', peso: 20 },
+    { nome: '5% de desconto', peso: 10 },
+    { nome: '10% de desconto', peso: 10 }
+  ];
+  var PRAISE = [
+    'Comida excelente, com certeza vou voltar!',
+    'Atendimento impecável, equipe muito atenciosa.',
+    'Ambiente super agradável, adorei a experiência.',
+    'Tudo perfeito, recomendo de olhos fechados.',
+    'Melhor experiência que tive em muito tempo por aqui.'
+  ];
+  var NEUTRAL = [
+    'Achei tudo dentro do esperado.',
+    'Foi uma experiência ok, sem grandes destaques.',
+    'Nada a reclamar, mas também nada surpreendente.',
+    'Cumpriu o que prometeu.'
+  ];
+  var CRITIC = [
+    'Demorou mais do que eu esperava.',
+    'O ambiente estava um pouco barulhento.',
+    'Achei o prato um pouco abaixo do esperado hoje.',
+    'Poderia ser mais rápido no atendimento.',
+    'Senti falta de mais atenção da equipe.'
+  ];
+
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(30000)) {
+    Logger.log('gerarDadosDemo: servidor ocupado, nada foi gerado.');
+    return null;
+  }
+  try {
+    var sheet = getSheet_();
+
+    // Cupons já existentes (produção + testes anteriores) para o novo lote nunca colidir.
+    var existing = {};
+    var last = sheet.getLastRow();
+    if (last >= 2) {
+      var ids = sheet.getRange(2, COL.CUPOM, last - 1, 1).getValues();
+      for (var i = 0; i < ids.length; i++) existing[String(ids[i][0]).trim().toUpperCase()] = true;
+    }
+    function newCoupon_() {
+      var c;
+      do { c = 'UND-' + randCode_(4); } while (existing[c]);
+      existing[c] = true;
+      return c;
+    }
+
+    var now = new Date();
+    var rows = [];
+    var sumNotes = 0, countNotes = 0;
+    var statusCount = {};
+    statusCount[STATUS_PENDING] = 0;
+    statusCount[STATUS_DONE] = 0;
+    statusCount[STATUS_EXPIRED] = 0;
+
+    for (var n = 1; n <= N; n++) {
+      var daysAgo = Math.random() * HORIZON_DAYS;
+      var date = new Date(now.getTime() - daysAgo * 86400000);
+      // Horário variado dentro do dia, em janela plausível de restaurante (11h–22h59).
+      date.setHours(11 + Math.floor(Math.random() * 12), Math.floor(Math.random() * 60), 0, 0);
+
+      var targetMean = MEAN_AT_90D + (MEAN_AT_0D - MEAN_AT_90D) * (HORIZON_DAYS - daysAgo) / HORIZON_DAYS;
+      var notaComida = sampleNote_(targetMean, NOTE_SIGMA, NOTE_JITTER);
+      var notaAtendimento = sampleNote_(targetMean, NOTE_SIGMA, NOTE_JITTER);
+      var notaAmbiente = sampleNote_(targetMean, NOTE_SIGMA, NOTE_JITTER);
+      var media3 = (notaComida + notaAtendimento + notaAmbiente) / 3;
+      sumNotes += notaComida + notaAtendimento + notaAmbiente;
+      countNotes += 3;
+
+      // Decide pela mesma regra de isExpired_ sobre a data JÁ com o horário ajustado acima —
+      // não pelo daysAgo contínuo, que o setHours() pode empurrar para o outro lado dos 30
+      // dias e deixar o status inconsistente com o que validate_/isExpired_ diriam depois.
+      var status;
+      if (dayNumber_(now) - dayNumber_(date) > COUPON_VALIDITY_DAYS) {
+        status = Math.random() < 0.7 ? STATUS_DONE : STATUS_EXPIRED;
+      } else {
+        status = Math.random() < 0.5 ? STATUS_PENDING : STATUS_DONE;
+      }
+      statusCount[status]++;
+
+      rows.push([
+        newCoupon_(), date, 'Cliente Demo ' + ('00' + n).slice(-3), fakePhone_(),
+        notaComida, notaAtendimento, notaAmbiente,
+        pickComment_(media3, PRAISE, NEUTRAL, CRITIC), pickPrize_(DEMO_PRIZES), status
+      ]);
+    }
+
+    var startRow = sheet.getLastRow() + 1;
+    sheet.getRange(startRow, 1, N, HEADERS.length).setValues(rows); // um único lote
+    [1, 3, 4, 8, 9, 10].forEach(function (c) { sheet.getRange(startRow, c, N, 1).setNumberFormat('@'); });
+    sheet.getRange(startRow, COL.DATA, N, 1).setNumberFormat('dd/MM/yyyy HH:mm');
+    SpreadsheetApp.flush();
+
+    // Confirmação independente de que o lote gerado não tem cupom repetido.
+    var seen = {}, dupCount = 0;
+    rows.forEach(function (r) { if (seen[r[0]]) dupCount++; seen[r[0]] = true; });
+
+    var resumo = {
+      linhasGeradas: N,
+      mediaNotas: Math.round((sumNotes / countNotes) * 10000) / 10000,
+      porStatus: statusCount,
+      cuponsDuplicados: dupCount
+    };
+    Logger.log('gerarDadosDemo: ' + JSON.stringify(resumo));
+    return resumo;
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/** Sorteia uma nota 1–5 com peso maior perto de targetMean (mais um ruído gaussiano por pergunta). */
+function sampleNote_(targetMean, sigma, jitterSigma) {
+  var g = Math.sqrt(-2 * Math.log(Math.random())) * Math.cos(2 * Math.PI * Math.random()); // Box-Muller
+  var qMean = Math.min(5, Math.max(1, targetMean + g * jitterSigma));
+  var weights = [1, 2, 3, 4, 5].map(function (v) {
+    return Math.exp(-((v - qMean) * (v - qMean)) / (2 * sigma * sigma));
+  });
+  return weightedPick_(weights);
+}
+
+function weightedPick_(weights) {
+  var total = weights.reduce(function (a, b) { return a + b; }, 0);
+  var r = Math.random() * total;
+  for (var v = 0; v < weights.length; v++) { r -= weights[v]; if (r < 0) return v + 1; }
+  return weights.length;
+}
+
+function pickPrize_(prizes) {
+  var total = prizes.reduce(function (s, p) { return s + p.peso; }, 0);
+  var r = Math.random() * total;
+  for (var i = 0; i < prizes.length; i++) { r -= prizes[i].peso; if (r < 0) return prizes[i].nome; }
+  return prizes[prizes.length - 1].nome;
+}
+
+/** ~40% das linhas sem comentário; nas demais, elogio para nota alta, neutro/crítico para nota baixa. */
+function pickComment_(media3, praise, neutral, critic) {
+  if (Math.random() < 0.4) return '';
+  var pool = media3 >= 4.3 ? praise : (media3 >= 3.3 ? neutral : critic);
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
+function fakePhone_() {
+  var DDDS = [11, 21, 31, 41, 51, 61, 71, 81, 85, 91]; // DDDs plausíveis, espalhados pelo país
+  var ddd = DDDS[Math.floor(Math.random() * DDDS.length)];
+  var linha = 90000 + Math.floor(Math.random() * 10000); // celular: começa com 9
+  var suf = Math.floor(Math.random() * 10000);
+  return '(' + ddd + ') ' + linha + '-' + ('000' + suf).slice(-4);
+}
+
+/** Mesmo alfabeto do gerador de cupom do front-end (sem O/0/I/1, para não confundir na leitura). */
+function randCode_(len) {
+  var A = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  var s = '';
+  for (var i = 0; i < len; i++) s += A.charAt(Math.floor(Math.random() * A.length));
+  return s;
+}
+
 // ---- Utilitários -------------------------------------------------------------
 
 function getSheet_() {
