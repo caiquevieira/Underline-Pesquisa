@@ -51,6 +51,7 @@ function doPost(e) {
       case 'register': return json_(register_(body));
       case 'validate': return json_(validate_(body));
       case 'admin': return json_(adminData_(body));
+      case 'export': return json_(exportData_(body));
       default: return json_({ ok: false, error: 'Ação inválida' });
     }
   } catch (err) {
@@ -178,6 +179,56 @@ function adminData_(b) {
     };
   });
   return { ok: true, rows: rows };
+}
+
+/**
+ * Exportação para .xlsx (botão "Exportar" do admin.html). Mesma senha do painel
+ * (ADMIN_PASSWORD). Ao contrário de adminData_, devolve TODAS as colunas, na ordem exata
+ * de HEADERS — inclusive WhatsApp. Exceção deliberada à regra de "nunca devolver WhatsApp"
+ * do action:"admin", pedida explicitamente para a exportação (ver CLAUDE.md).
+ *
+ * `cupons` (opcional): lista de códigos a incluir, já filtrados no admin.html pelo período
+ * selecionado na tela — sem isso, o backend teria que reimplementar a mesma regra de datas
+ * do front-end e arriscar exportar algo diferente do que a pessoa está vendo na tela. Sem
+ * `cupons` (ou lista vazia), exporta a planilha inteira.
+ *
+ * Só lê a planilha e devolve JSON (mesma classe de chamada que adminData_ já faz) — não usa
+ * DriveApp nem a exportação nativa do Google (que pediria escopo OAuth novo e arriscaria
+ * quebrar a autorização do deployment atual, usado por todo o resto do webhook). O .xlsx de
+ * verdade é montado no navegador, a partir deste JSON.
+ */
+function exportData_(b) {
+  if (String(b.senha == null ? '' : b.senha) !== String(ADMIN_PASSWORD)) {
+    return { ok: false, error: 'Senha incorreta' };
+  }
+
+  var sheet = getSheet_();
+  var last = sheet.getLastRow();
+  if (last < 2) return { ok: true, headers: HEADERS, rows: [] };
+
+  var values = sheet.getRange(2, 1, last - 1, HEADERS.length).getValues();
+
+  var wanted = null;
+  if (Array.isArray(b.cupons) && b.cupons.length) {
+    wanted = {};
+    b.cupons.forEach(function (c) { wanted[String(c).trim().toUpperCase()] = true; });
+  }
+
+  var rows = [];
+  values.forEach(function (row) {
+    var cupom = String(row[COL.CUPOM - 1]).trim().toUpperCase();
+    if (wanted && !wanted[cupom]) return;
+    var d = toDate_(row[COL.DATA - 1]);
+    rows.push([
+      row[COL.CUPOM - 1],
+      d ? d.toISOString() : row[COL.DATA - 1],   // instante absoluto; o navegador converte pro fuso local
+      row[2], row[COL.WHATSAPP - 1],
+      row[4], row[5], row[6],
+      row[7], row[COL.PREMIO - 1], row[COL.STATUS - 1]
+    ]);
+  });
+
+  return { ok: true, headers: HEADERS, rows: rows };
 }
 
 /**

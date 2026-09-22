@@ -4,7 +4,7 @@ Template reutilizável (multi-cliente) de pesquisa de satisfação com prêmio g
 
 ## Stack e restrições não-negociáveis
 
-- **Zero build step.** HTML + CSS + JS puro, sem bundler, sem transpilação, sem React. `index.html` continua sem dependências externas de CDN/fonte (font-stack de sistema); `admin.html` é a única página que carrega algo externo (Chart.js via cdnjs — ver "Painel administrativo").
+- **Zero build step.** HTML + CSS + JS puro, sem bundler, sem transpilação, sem React. `index.html` continua sem dependências externas de CDN/fonte (font-stack de sistema); `admin.html` é a única página que carrega algo externo — duas libs via cdnjs, versões fixas, conferir que existem antes de trocar: **Chart.js 4.4.1** (gráficos) e **SheetJS (xlsx) 0.18.5** (exportação `.xlsx`, ver "Painel administrativo").
 - **Backend:** Google Apps Script (`Code.gs`) vinculado a uma planilha Google Sheets. Web app já existe e está deployado:
   - Webhook: `https://script.google.com/macros/s/AKfycbyIAAEirtDqZNlXj1l_MQBVrFzd7qK-WpoKiipm5VXhiHXGFb6pMQRCZ83KivYrpKCo/exec`
   - Ao atualizar o `Code.gs`, publicar como **nova versão do mesmo deployment** (não criar deployment novo) para manter essa URL viva.
@@ -28,13 +28,32 @@ Não existe página separada de caixa — decisão explícita: usar senha simple
 
 ## Painel administrativo (`admin.html`)
 
-Dashboard de leitura para o dono/gestor do restaurante: KPIs, gráficos (Chart.js 4.4.1 via cdnjs — versão fixa, conferir que existe antes de trocar), tabela de respostas recentes, filtro por período (tudo / 30 dias / 7 dias, recalculado no cliente a partir de tudo que o backend devolveu).
+Dashboard de leitura para o dono/gestor do restaurante: KPIs, Promotores/Neutros/Detratores, gráfico de tendência com drilldown mensal→diário, distribuição de prêmios e status, tabela paginada de respostas, exportação `.xlsx`, filtro por período (tudo / 30 dias / 7 dias, recalculado no cliente a partir de tudo que o backend devolveu).
 
 - **Login real, não cosmético:** o campo "Usuário" é só decorativo. O acesso só é liberado quando o backend confirma a senha e devolve os dados — nunca por comparação de string no `admin.html`. A senha (não um simples "logado: true") fica em `sessionStorage`, e a cada carregamento da página ela é reenviada ao backend para validar de novo; um valor adulterado no `sessionStorage` não dá acesso, porque cai na mesma checagem real do backend.
-- **Contrato do backend:** `action: "admin"` no `doPost`, com `{ senha }`. Retorna `{ ok: true, rows: [...] }` (cada linha com `cupom, data (ISO), nome, notaComida, notaAtendimento, notaAmbiente, comentario, premio, status` — **nunca** a coluna WhatsApp, mesmo com a senha certa) ou `{ ok: false, error }` sem vazar nenhum dado.
-- **Duas armadilhas já resolvidas, não reintroduzir:**
-  1. **Ordem de inicialização:** a chamada que de fato aciona a primeira renderização (`tryAutoLogin()`, no fim do script) precisa vir depois de **toda** declaração `let`/`const` do arquivo (ex.: `let trendChart, prizeChart`). Chamar antes é "acesso antes da inicialização" — o erro não fica contido, ele trava todo o código que viria depois no mesmo escopo (nada de listener de filtro, por exemplo, chega a ser registrado).
-  2. **`safeRender(fn, rows)`:** cada seção do dashboard (KPIs, tendência, categorias, prêmios, status, tabela) é chamada dentro desse wrapper com try/catch, logando no console em vez de propagar. Se um gráfico falhar (CDN bloqueado, lento etc.), o resto do painel continua funcionando.
+- **Contrato do backend (leitura, `action: "admin"`):** `doPost` com `{ senha }`. Retorna `{ ok: true, rows: [...] }` (cada linha com `cupom, data (ISO), nome, notaComida, notaAtendimento, notaAmbiente, comentario, premio, status` — **nunca** a coluna WhatsApp, mesmo com a senha certa) ou `{ ok: false, error }` sem vazar nenhum dado.
+- **Três armadilhas já resolvidas, não reintroduzir:**
+  1. **Ordem de inicialização:** a chamada que de fato aciona a primeira renderização (`tryAutoLogin()`, no fim do script) precisa vir depois de **toda** declaração `let`/`const` do arquivo (ex.: `let trendChart, prizeChart, trendDrilldownMonth, tablePage`). Chamar antes é "acesso antes da inicialização" — o erro não fica contido, ele trava todo o código que viria depois no mesmo escopo (nada de listener de filtro, por exemplo, chega a ser registrado).
+  2. **`safeRender(fn, rows)`:** cada seção do dashboard (KPIs, NPS, tendência, categorias, prêmios, status, tabela) é chamada dentro desse wrapper com try/catch, logando no console em vez de propagar. Se um gráfico falhar (CDN bloqueado, lento etc.), o resto do painel continua funcionando.
+  3. **Elementos com o atributo `hidden` (ex.: `#btn-trend-back`) precisam do CSS `[hidden] { display: none !important; }`** — sem essa regra, qualquer outra classe que a página já aplique ao mesmo elemento com sua própria `display` (ex.: `.link { display: block; }`) tem a mesma especificidade e pode vencer o `hidden` padrão do navegador, deixando o elemento visível mesmo com `.hidden === true`. Descoberto porque os testes automatizados checavam a propriedade `.hidden` (que ficava `true` corretamente) em vez do `display` computado (que não mudava) — ao adicionar um novo elemento escondido/mostrado via `hidden`, testar sempre pelo `getComputedStyle(...).display`, não só pela propriedade.
+
+### Promotores, Neutros e Detratores
+
+Não é NPS de verdade — a pesquisa não tem a pergunta de 0–10, só as 3 notas do CSAT (1–5). É uma régua análoga sobre a média das 3 notas por resposta (`media`), com os cortes documentados na tela pra nunca ficar ambígua: **Promotor** `media ≥ 4,5`, **Neutro** `3,5 ≤ media < 4,5`, **Detrator** `media < 3,5` (constantes `NPS_PROMOTER_MIN`/`NPS_NEUTRAL_MIN` no topo do script). Comparação com o "período anterior correspondente" só existe pros filtros de 30 e 7 dias (compara com a mesma quantidade de dias imediatamente anterior); no filtro "Tudo" não há um período anterior natural, então mostra "Sem período anterior para comparar" em vez de inventar um recorte.
+
+### Gráfico de tendência com drilldown
+
+`renderTrend(rows)` é um dispatcher: mostra a visão mensal (`renderTrendMonthly`) por padrão, agrupando `media` por mês. Clicar num ponto (`Chart.js options.onClick`) troca para a visão diária daquele mês (`renderTrendDaily`) e mostra o botão "← Voltar para visão mensal" (`#btn-trend-back`). Trocar o filtro de período (Tudo/30/7) reseta o drilldown de volta pra visão mensal, senão a pessoa ficaria "presa" na visão diária de um mês que pode nem estar mais no período filtrado.
+
+### Tabela de respostas paginada
+
+Mostra **todas** as respostas do período selecionado (não só as 20 mais recentes), 20 por página, com botões Anterior/Próxima (`tablePage`, `TABLE_PAGE_SIZE = 20`). Trocar o filtro de período reseta para a página 1.
+
+### Exportação `.xlsx`
+
+Botão "Exportar (.xlsx)" no topbar. **Contrato do backend (`action: "export"`):** `doPost` com `{ senha, cupons }` (`cupons`: lista opcional de códigos — o `admin.html` manda exatamente os cupons do período filtrado que já estão na tela, todas as páginas; sem `cupons`, exporta a planilha inteira). Retorna `{ ok: true, headers: [...], rows: [[...], ...] }` com **as 10 colunas na ordem exata de `HEADERS`, incluindo WhatsApp** — exceção deliberada, pedida especificamente para este botão (decisão registrada: o `action:"admin"` do dashboard continua sem WhatsApp; só a exportação inclui).
+
+`exportData_` só lê a planilha (`SpreadsheetApp.getRange().getValues()`), do mesmo jeito que `adminData_` já fazia — **não** usa a exportação nativa do Google (`docs.google.com/.../export`) nem `DriveApp`. Essa rota exigiria um escopo OAuth novo (Drive), e como o deployment roda com a autorização que o desenvolvedor já concedeu, um escopo novo poderia quebrar a autorização de **todo** o webhook (inclusive `register`/`validate`, usados por clientes reais) até alguém reautorizar manualmente no editor — risco desproporcional para uma funcionalidade só do admin. O `.xlsx` de verdade é montado no navegador a partir desse JSON, com SheetJS (`XLSX.utils.aoa_to_sheet` + `XLSX.writeFile`).
 
 ## Fluxo de telas (uma por vez, transição por fade/slide)
 

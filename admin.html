@@ -16,6 +16,7 @@
     --shadow: 0 2px 8px rgba(0,0,0,.06);
   }
   * { box-sizing: border-box; }
+  [hidden] { display: none !important; } /* alguns elementos (ex.: .link) setam display própria e sobrescreveriam o hidden padrão sem isso */
   html { -webkit-text-size-adjust: 100%; }
   body {
     margin: 0;
@@ -90,10 +91,18 @@
   .topbar-brand img { height: 32px; width: 32px; object-fit: contain; border-radius: 8px; }
   .topbar h1 { font-size: 20px; font-weight: 800; margin: 0; }
   .topbar .sub { font-size: 13px; color: var(--muted); margin-top: 2px; }
+  .topbar-actions { display: flex; gap: 8px; flex-wrap: wrap; }
   .btn-logout {
     background: #fff; border: 1.5px solid var(--border);
     border-radius: 999px; padding: 8px 18px;
     font-size: 13px; font-weight: 700; cursor: pointer;
+    white-space: nowrap;
+  }
+  .btn-logout:disabled { opacity: .5; cursor: not-allowed; }
+  .link {
+    background: none; border: 0; padding: 4px 0; margin-bottom: 10px;
+    font-size: 12.5px; font-weight: 700; color: var(--ink);
+    text-decoration: underline; cursor: pointer; display: block;
   }
 
   .kpi-grid {
@@ -158,6 +167,36 @@
     padding: 7px 14px; font-size: 12.5px; font-weight: 700; cursor: pointer; color: var(--muted);
   }
   .filter-btn.active { background: #000; color: var(--gold); border-color: #000; }
+  .page-btn {
+    border: 1.5px solid var(--border); background: #fff; border-radius: 999px;
+    padding: 7px 14px; font-size: 12.5px; font-weight: 700; cursor: pointer; color: var(--ink);
+  }
+  .page-btn:disabled { opacity: .4; cursor: not-allowed; }
+
+  /* Promotores / Neutros / Detratores */
+  .nps-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+  }
+  .nps-card { border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
+  .nps-card .nps-label { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; margin-bottom: 6px; }
+  .nps-card .nps-value { font-size: 22px; font-weight: 800; }
+  .nps-card .nps-value .unit { font-size: 13px; font-weight: 600; color: var(--muted); }
+  .nps-card .nps-count { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .nps-card .nps-delta { font-size: 12px; font-weight: 700; margin-top: 6px; }
+  .nps-delta.up { color: #216E29; }
+  .nps-delta.down { color: #8A2E2E; }
+  .nps-delta.flat { color: var(--muted); }
+  .nps-promoter { background: #E3F3E4; }
+  .nps-neutral { background: #FFF4CC; }
+  .nps-detractor { background: #F3E3E3; }
+
+  /* Paginação da tabela */
+  .pagination {
+    display: flex; align-items: center; justify-content: center; gap: 14px;
+    margin-top: 14px; font-size: 12.5px; font-weight: 700; color: var(--muted);
+  }
 
   /* Rodapé fixo, igual ao index.html */
   .site-footer {
@@ -212,7 +251,10 @@
         <div class="sub" id="period-label">Carregando período…</div>
       </div>
     </div>
-    <button class="btn-logout" id="btn-logout" type="button">Sair</button>
+    <div class="topbar-actions">
+      <button class="btn-logout" id="btn-export" type="button">Exportar (.xlsx)</button>
+      <button class="btn-logout" id="btn-logout" type="button">Sair</button>
+    </div>
   </div>
 
   <div class="filter-bar">
@@ -240,10 +282,17 @@
     </div>
   </div>
 
+  <div class="panel">
+    <h2>Promotores, Neutros e Detratores</h2>
+    <p class="panel-sub">Pela média das 3 notas do CSAT — Promotor ≥ 4,5 · Neutro 3,5–4,4 · Detrator &lt; 3,5</p>
+    <div class="nps-grid" id="nps-grid"></div>
+  </div>
+
   <div class="panel-grid">
     <div class="panel">
       <h2>Evolução da nota média</h2>
-      <p class="panel-sub">Média semanal das 3 perguntas do CSAT</p>
+      <p class="panel-sub" id="trend-sub">Visão mensal — clique num ponto para ver os dias daquele mês</p>
+      <button class="link" id="btn-trend-back" type="button" hidden>&larr; Voltar para visão mensal</button>
       <div class="chart-wrap"><canvas id="chart-trend"></canvas></div>
     </div>
     <div class="panel">
@@ -268,7 +317,7 @@
 
   <div class="panel">
     <h2>Respostas recentes</h2>
-    <p class="panel-sub">As 20 respostas mais recentes do período selecionado</p>
+    <p class="panel-sub">Todas as respostas do período selecionado, 20 por página</p>
     <div class="table-scroll">
       <table>
         <thead>
@@ -284,6 +333,11 @@
         <tbody id="table-body"></tbody>
       </table>
     </div>
+    <div class="pagination" id="table-pagination">
+      <button class="page-btn" id="btn-page-prev" type="button">&larr; Anterior</button>
+      <span id="page-label">Página 1 de 1</span>
+      <button class="page-btn" id="btn-page-next" type="button">Próxima &rarr;</button>
+    </div>
   </div>
 </div>
 
@@ -298,6 +352,7 @@
      index.html. Precisa carregar ANTES do script abaixo. -->
 <script src="config.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 (function () {
   'use strict';
@@ -324,6 +379,18 @@
   let ALL = [];              // respostas carregadas do backend (só após login)
   let trendChart = null;
   let prizeChart = null;
+  let currentRows = [];      // último conjunto filtrado pelo período (Tudo/30/7) — usado pela
+                              // paginação da tabela e pela exportação, sem refiltrar ALL de novo
+  let currentDays = 0;       // período (Tudo/30/7) selecionado no momento
+  let trendDrilldownMonth = null; // null = visão mensal; "YYYY-MM" = visão diária daquele mês
+  let trendMonthKeys = [];   // labels do último gráfico mensal renderizado, na ordem das barras/pontos
+  let tablePage = 1;         // página atual da tabela de respostas (20 por página)
+
+  // Cortes de Promotor/Neutro/Detrator sobre a média das 3 notas do CSAT (1–5). Não é NPS de
+  // verdade (a pesquisa não tem a pergunta de 0–10) — é uma régua análoga, documentada aqui e
+  // no rótulo do painel para nunca ficar ambígua pra quem olhar o dashboard.
+  const NPS_PROMOTER_MIN = 4.5;
+  const NPS_NEUTRAL_MIN = 3.5;
 
   /* ---------- Marca (mesmo padrão do index.html) ---------- */
   // Login: logo grande, com o mesmo placeholder pontilhado "Seu logo aqui" do index.html
@@ -365,6 +432,65 @@
     } catch (e) {
       return { ok: false, network: true, error: 'Não foi possível conectar ao servidor. Verifique sua internet.' };
     }
+  }
+
+  // Exportação (.xlsx) — action:"export" devolve TODAS as colunas, inclusive WhatsApp (exceção
+  // deliberada à regra do action:"admin", pedida especificamente pro botão de exportar; ver
+  // CLAUDE.md). Reaproveita a senha já validada desta sessão (sessionStorage), sem pedir de novo.
+  async function fetchExportData(senha, cupons) {
+    try {
+      const res = await fetch(CONFIG.WEBHOOK_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: 'export', senha: senha, cupons: cupons })
+      });
+      return await res.json();
+    } catch (e) {
+      return { ok: false, network: true, error: 'Não foi possível conectar ao servidor. Verifique sua internet.' };
+    }
+  }
+
+  async function exportXlsx() {
+    const btn = $('#btn-export');
+    let senha;
+    try { senha = sessionStorage.getItem(SESSION_KEY); } catch (e) { senha = null; }
+    if (!senha) return; // não deveria acontecer: o botão só existe dentro do dashboard, já logado
+
+    const original = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Exportando...';
+
+    // Exporta exatamente o que está na tela: todas as respostas do período selecionado (Tudo/
+    // 30/7 dias), todas as páginas da tabela — não só a página atual.
+    const cupons = currentRows.map(r => r.cupom).filter(Boolean);
+    const r = await fetchExportData(senha, cupons);
+
+    if (r && r.ok === true && Array.isArray(r.rows)) {
+      try {
+        const aoa = [r.headers].concat(r.rows);
+        const ws = XLSX.utils.aoa_to_sheet(aoa);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Respostas');
+        const now = new Date();
+        const stamp = now.getFullYear() + String(now.getMonth() + 1).padStart(2, '0') + String(now.getDate()).padStart(2, '0');
+        XLSX.writeFile(wb, 'respostas-' + stamp + '.xlsx');
+      } catch (e) {
+        console.error('Falha ao montar o .xlsx:', e);
+        btn.textContent = 'Falha ao exportar';
+        setTimeout(() => { btn.textContent = original; }, 2500);
+        btn.disabled = false;
+        return;
+      }
+    } else {
+      console.error('Falha ao exportar:', r && r.error);
+      btn.textContent = 'Falha ao exportar';
+      setTimeout(() => { btn.textContent = original; }, 2500);
+      btn.disabled = false;
+      return;
+    }
+
+    btn.disabled = false;
+    btn.textContent = original;
   }
 
   function parseRow(r) {
@@ -412,6 +538,9 @@
   function logout() {
     try { sessionStorage.removeItem(SESSION_KEY); } catch (e) { /* ignora */ }
     ALL = [];
+    currentRows = [];
+    trendDrilldownMonth = null;
+    tablePage = 1;
     dashboard.style.display = 'none';
     loginScreen.style.display = 'flex';
     $('#in-pass').value = '';
@@ -429,11 +558,23 @@
     return String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0') + '/' + d.getFullYear();
   }
 
-  function renderAll(days) {
+  // Linhas com diferença em dias (now - r.data) dentro de (fromDays, toDays]. Com toDays=0
+  // (sem limite superior), é o próprio filtro "Tudo"/"últimos N dias" de sempre.
+  function rowsInRange(fromDays, toDays) {
     const now = new Date();
     const withDate = ALL.filter(r => r.data);
-    const rows = days > 0 ? withDate.filter(r => (now - r.data) / 86400000 <= days) : withDate;
+    return withDate.filter(r => {
+      const diff = (now - r.data) / 86400000;
+      return diff > fromDays && (toDays <= 0 || diff <= toDays);
+    });
+  }
 
+  function renderAll(days) {
+    currentDays = days;
+    const rows = rowsInRange(0, days);
+    currentRows = rows;
+
+    const now = new Date();
     const oldest = rows.length ? rows[rows.length - 1].data : now;
     const newest = rows.length ? rows[0].data : now;
     $('#period-label').textContent = rows.length + ' resposta' + (rows.length === 1 ? '' : 's') +
@@ -442,6 +583,7 @@
     // Cada seção é independente: se uma falhar (CDN do gráfico bloqueado, por exemplo), o
     // resto do painel continua funcionando.
     safeRender(renderKPIs, rows);
+    safeRender(renderNPS, rows);
     safeRender(renderTrend, rows);
     safeRender(renderCategoryBreakdown, rows);
     safeRender(renderPrizes, rows);
@@ -469,22 +611,117 @@
     $('#kpi-comentarios').innerHTML = (total ? Math.round(comComentario / total * 100) : 0) + ' <span class="unit">%</span>';
   }
 
-  function weekKey(d) {
-    const onejan = new Date(d.getFullYear(), 0, 1);
-    const week = Math.ceil((((d - onejan) / 86400000) + onejan.getDay() + 1) / 7);
-    return d.getFullYear() + '-S' + String(week).padStart(2, '0');
+  /* ---------- Promotores / Neutros / Detratores ---------- */
+  // Não é NPS de verdade (a pesquisa não tem a pergunta de 0–10, só as 3 notas do CSAT) — é
+  // uma régua análoga sobre a média das 3 notas, com os cortes documentados no CSS/HTML acima
+  // e aqui, pra nunca ficar ambígua.
+  function npsBucket(media) {
+    if (media >= NPS_PROMOTER_MIN) return 'promoter';
+    if (media >= NPS_NEUTRAL_MIN) return 'neutral';
+    return 'detractor';
   }
 
-  function renderTrend(rows) {
-    const byWeek = {};
-    rows.slice().sort((a, b) => a.data - b.data).forEach(r => {
-      const k = weekKey(r.data);
-      if (!byWeek[k]) byWeek[k] = [];
-      byWeek[k].push(r.media);
-    });
-    const labels = Object.keys(byWeek);
-    const values = labels.map(k => byWeek[k].reduce((a, b) => a + b, 0) / byWeek[k].length);
+  function npsCounts(rows) {
+    const c = { promoter: 0, neutral: 0, detractor: 0 };
+    rows.forEach(r => { c[npsBucket(r.media)]++; });
+    return c;
+  }
 
+  function renderNPS(rows) {
+    const total = rows.length || 1;
+    const counts = npsCounts(rows);
+
+    // Comparação com o período anterior equivalente só existe pra filtros de 7/30 dias — pra
+    // "Tudo" não há um "período anterior" natural, então mostramos isso em vez de inventar um recorte.
+    let prevCounts = null, prevTotal = 0;
+    if (currentDays > 0) {
+      const prevRows = rowsInRange(currentDays, currentDays * 2);
+      prevTotal = prevRows.length;
+      if (prevTotal) prevCounts = npsCounts(prevRows);
+    }
+
+    const defs = [
+      { key: 'promoter', label: 'Promotores', cls: 'nps-promoter' },
+      { key: 'neutral', label: 'Neutros', cls: 'nps-neutral' },
+      { key: 'detractor', label: 'Detratores', cls: 'nps-detractor' }
+    ];
+
+    $('#nps-grid').innerHTML = defs.map(d => {
+      const pct = Math.round(counts[d.key] / total * 100);
+      let deltaHtml = '<div class="nps-delta flat">Sem período anterior para comparar</div>';
+      if (prevCounts) {
+        const prevPct = Math.round(prevCounts[d.key] / prevTotal * 100);
+        const delta = pct - prevPct;
+        const cls = delta > 0 ? 'up' : (delta < 0 ? 'down' : 'flat');
+        const sign = delta > 0 ? '+' : '';
+        deltaHtml = '<div class="nps-delta ' + cls + '">' + sign + delta + ' p.p. vs. período anterior</div>';
+      }
+      return '<div class="nps-card ' + d.cls + '">' +
+        '<div class="nps-label">' + d.label + '</div>' +
+        '<div class="nps-value">' + pct + '<span class="unit">%</span></div>' +
+        '<div class="nps-count">' + counts[d.key] + ' de ' + total + '</div>' +
+        deltaHtml +
+      '</div>';
+    }).join('');
+  }
+
+  /* ---------- Evolução da nota média (mensal, com drilldown pro dia) ---------- */
+  function monthKeyOf(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); }
+  function dayKeyOf(d) { return monthKeyOf(d) + '-' + String(d.getDate()).padStart(2, '0'); }
+  const MONTH_NAMES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+  function monthLabelOf(key) {
+    const parts = key.split('-').map(Number);
+    return MONTH_NAMES[parts[1] - 1] + '/' + parts[0];
+  }
+
+  // Dispatcher: chamado sempre pelo mesmo nome (renderTrend) pelo safeRender/renderAll/pelos
+  // cliques de drilldown — decide internamente se mostra a visão mensal ou a diária de um mês.
+  function renderTrend(rows) {
+    if (trendDrilldownMonth) renderTrendDaily(rows, trendDrilldownMonth);
+    else renderTrendMonthly(rows);
+  }
+
+  function renderTrendMonthly(rows) {
+    $('#trend-sub').textContent = 'Visão mensal — clique num ponto para ver os dias daquele mês';
+    $('#btn-trend-back').hidden = true;
+
+    const byMonth = {};
+    rows.slice().sort((a, b) => a.data - b.data).forEach(r => {
+      const k = monthKeyOf(r.data);
+      if (!byMonth[k]) byMonth[k] = [];
+      byMonth[k].push(r.media);
+    });
+    trendMonthKeys = Object.keys(byMonth).sort();
+    const labels = trendMonthKeys.map(monthLabelOf);
+    const values = trendMonthKeys.map(k => byMonth[k].reduce((a, b) => a + b, 0) / byMonth[k].length);
+
+    buildTrendChart(labels, values, index => {
+      const key = trendMonthKeys[index];
+      if (!key) return;
+      trendDrilldownMonth = key;
+      safeRender(renderTrend, currentRows);
+    });
+  }
+
+  function renderTrendDaily(rows, monthKeyValue) {
+    $('#trend-sub').textContent = 'Dias de ' + monthLabelOf(monthKeyValue);
+    $('#btn-trend-back').hidden = false;
+
+    const dayRows = rows.filter(r => monthKeyOf(r.data) === monthKeyValue);
+    const byDay = {};
+    dayRows.slice().sort((a, b) => a.data - b.data).forEach(r => {
+      const k = dayKeyOf(r.data);
+      if (!byDay[k]) byDay[k] = [];
+      byDay[k].push(r.media);
+    });
+    const keys = Object.keys(byDay).sort();
+    const labels = keys.map(k => k.slice(-2)); // só o número do dia
+    const values = keys.map(k => byDay[k].reduce((a, b) => a + b, 0) / byDay[k].length);
+
+    buildTrendChart(labels, values, null); // sem novo nível de drilldown a partir do dia
+  }
+
+  function buildTrendChart(labels, values, onPointClick) {
     const ctx = $('#chart-trend').getContext('2d');
     if (trendChart) trendChart.destroy();
     trendChart = new Chart(ctx, {
@@ -496,7 +733,9 @@
           borderColor: '#000000',
           backgroundColor: 'rgba(255,209,0,0.25)',
           borderWidth: 2,
-          pointRadius: 2,
+          pointRadius: 3,
+          pointHoverRadius: 6,
+          pointHitRadius: 10,
           pointBackgroundColor: '#000',
           tension: 0.3,
           fill: true
@@ -505,9 +744,17 @@
       options: {
         responsive: true, maintainAspectRatio: false,
         plugins: { legend: { display: false } },
+        onClick: onPointClick ? (evt, elements) => {
+          if (elements && elements.length) onPointClick(elements[0].index);
+        } : undefined,
+        onHover: onPointClick ? (evt, elements) => {
+          if (evt && evt.native && evt.native.target) {
+            evt.native.target.style.cursor = elements.length ? 'pointer' : 'default';
+          }
+        } : undefined,
         scales: {
           y: { min: 1, max: 5, ticks: { stepSize: 1, font: { size: 11 } }, grid: { color: '#F0F0F0' } },
-          x: { ticks: { font: { size: 10 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 6 }, grid: { display: false } }
+          x: { ticks: { font: { size: 10 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 8 }, grid: { display: false } }
         }
       }
     });
@@ -578,15 +825,27 @@
     return 'pill-vencido';
   }
 
+  const TABLE_PAGE_SIZE = 20;
+
   function renderTable(rows) {
-    const top = rows.slice(0, 20);
-    if (!top.length) {
+    const totalPages = Math.max(1, Math.ceil(rows.length / TABLE_PAGE_SIZE));
+    if (tablePage > totalPages) tablePage = totalPages;
+    if (tablePage < 1) tablePage = 1;
+    const start = (tablePage - 1) * TABLE_PAGE_SIZE;
+    const page = rows.slice(start, start + TABLE_PAGE_SIZE);
+
+    $('#page-label').textContent = 'Página ' + tablePage + ' de ' + totalPages +
+      ' (' + rows.length + ' resposta' + (rows.length === 1 ? '' : 's') + ')';
+    $('#btn-page-prev').disabled = tablePage <= 1;
+    $('#btn-page-next').disabled = tablePage >= totalPages;
+
+    if (!page.length) {
       $('#table-body').innerHTML = '';
       $('#table-body').closest('table').style.display = 'none';
       return;
     }
     $('#table-body').closest('table').style.display = '';
-    const html = top.map(r => {
+    const html = page.map(r => {
       const d = r.data;
       const dataStr = d ? fmtDate(d) + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0') : '—';
       // Escapar o comentário real primeiro; o traço de "sem comentário" é HTML de propósito,
@@ -621,10 +880,21 @@
   $('#btn-login').addEventListener('click', tryLogin);
   $('#in-pass').addEventListener('keydown', e => { if (e.key === 'Enter') tryLogin(); });
   $('#btn-logout').addEventListener('click', logout);
-  document.querySelectorAll('.filter-btn').forEach(btn => {
+  $('#btn-export').addEventListener('click', exportXlsx);
+  $('#btn-trend-back').addEventListener('click', () => {
+    trendDrilldownMonth = null;
+    safeRender(renderTrend, currentRows);
+  });
+  $('#btn-page-prev').addEventListener('click', () => { tablePage--; safeRender(renderTable, currentRows); });
+  $('#btn-page-next').addEventListener('click', () => { tablePage++; safeRender(renderTable, currentRows); });
+  document.querySelectorAll('.filter-bar .filter-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.filter-bar .filter-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
+      // Muda o período: reseta o drilldown do gráfico e a página da tabela, senão o usuário
+      // ficaria "preso" na visão diária de um mês ou numa página que não existe mais no filtro novo.
+      trendDrilldownMonth = null;
+      tablePage = 1;
       renderAll(parseInt(btn.dataset.days, 10));
     });
   });
