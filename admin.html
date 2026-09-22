@@ -130,12 +130,16 @@
     gap: 16px;
     margin-bottom: 16px;
   }
-  @media (max-width: 760px) {
-    .panel-grid { grid-template-columns: 1fr; }
-  }
   /* Duas colunas exatamente iguais (a .panel-grid padrão é 1.4fr/1fr) — usada na seção de
      Promotores/Neutros/Detratores, onde os dois cards precisam ficar simétricos. */
   .panel-grid-even { grid-template-columns: 1fr 1fr; }
+  /* As duas variantes precisam colapsar pra 1 coluna no mobile — como .panel-grid e
+     .panel-grid-even têm a mesma especificidade, listar as duas aqui (em vez de só
+     .panel-grid) garante que esta regra vence nas duas, independente da ordem de declaração
+     acima. Sem isso, .panel-grid-even ficava sempre em 2 colunas, mesmo em telas estreitas. */
+  @media (max-width: 760px) {
+    .panel-grid, .panel-grid-even { grid-template-columns: 1fr; }
+  }
   /* .panel já garante mesma largura/padding via .panel-grid-even + a classe .panel comum;
      isto aqui garante a mesma ALTURA DE VERDADE (não só a caixa externa, que o grid já
      estica igual): o gráfico ocupa o espaço restante depois do título/subtítulo/legenda de
@@ -391,7 +395,10 @@
     { label: 'Atendimento', idx: 1 },
     { label: 'Ambiente', idx: 2 }
   ];
-  const PRIZE_COLORS = ['#FFD100', '#000000', '#B3261E', '#6B6B6B', '#7A5D00', '#216E29'];
+  // Paleta pastel (azul, roxo, verde menta, amarelo trigo — mesmo tom de amarelo do NPS
+  // Neutro, #FFD54F) pra combinar com o resto do painel, no lugar do preto/vermelho escuro/
+  // amarelo forte de antes.
+  const PRIZE_COLORS = ['#90CAF9', '#B39DDB', '#80CBC4', '#FFD54F'];
 
   let ALL = [];              // respostas carregadas do backend (só após login)
   let trendChart = null;
@@ -452,33 +459,44 @@
   }
 
   /* ---------- Backend ---------- */
-  async function fetchAdminData(senha) {
+  // Uma tentativa de POST ao webhook. Devolve o JSON da resposta, ou null em falha de rede,
+  // timeout, ou corpo que não seja JSON (o redirecionamento do Apps Script via
+  // script.googleusercontent.com falha de forma transitória de vez em quando — confirmado
+  // testando contra produção — daí o retry em apiCall abaixo, mesmo padrão do api() do index.html).
+  async function apiCallOnce(payload) {
     try {
       const res = await fetch(CONFIG.WEBHOOK_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // evita preflight CORS
-        body: JSON.stringify({ action: 'admin', senha: senha })
+        body: JSON.stringify(payload)
       });
       return await res.json();
     } catch (e) {
-      return { ok: false, network: true, error: 'Não foi possível conectar ao servidor. Verifique sua internet.' };
+      return null;
     }
+  }
+
+  // Resposta sem o campo `ok` (ou falha de rede) é tratada como falha transitória: uma nova
+  // tentativa após CONFIG.API_RETRY_DELAY_MS, e só então o erro chega à tela. Erros de negócio
+  // (ok:false com uma mensagem real, ex. "Senha incorreta") não são repetidos.
+  async function apiCall(payload) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      if (attempt > 0) await new Promise(r => setTimeout(r, CONFIG.API_RETRY_DELAY_MS));
+      const r = await apiCallOnce(payload);
+      if (r && typeof r.ok === 'boolean') return r;
+    }
+    return { ok: false, network: true, error: 'Não foi possível conectar ao servidor. Verifique sua internet.' };
+  }
+
+  function fetchAdminData(senha) {
+    return apiCall({ action: 'admin', senha: senha });
   }
 
   // Exportação (.xlsx) — action:"export" devolve TODAS as colunas, inclusive WhatsApp (exceção
   // deliberada à regra do action:"admin", pedida especificamente pro botão de exportar; ver
   // CLAUDE.md). Reaproveita a senha já validada desta sessão (sessionStorage), sem pedir de novo.
-  async function fetchExportData(senha, cupons) {
-    try {
-      const res = await fetch(CONFIG.WEBHOOK_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ action: 'export', senha: senha, cupons: cupons })
-      });
-      return await res.json();
-    } catch (e) {
-      return { ok: false, network: true, error: 'Não foi possível conectar ao servidor. Verifique sua internet.' };
-    }
+  function fetchExportData(senha, cupons) {
+    return apiCall({ action: 'export', senha: senha, cupons: cupons });
   }
 
   async function exportXlsx() {
