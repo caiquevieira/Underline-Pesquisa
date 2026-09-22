@@ -248,7 +248,7 @@
       <div class="card">
         <h2 tabindex="-1" id="review-title"></h2>
         <p id="review-text"></p>
-        <button class="btn" id="btn-review-rate" type="button"></button>
+        <a class="btn" id="btn-review-rate" href="#" target="_blank" rel="noopener" style="text-decoration:none;text-align:center"></a>
         <button class="btn ghost" id="btn-review-done" type="button"></button>
         <button class="link" id="btn-review-skip" type="button" style="display:block;margin:14px auto 0"></button>
       </div>
@@ -884,7 +884,7 @@ const CONFIG = {
     $('#btn-review-rate').textContent = CONFIG.REVIEW_BTN_RATE;
     $('#btn-review-done').textContent = CONFIG.REVIEW_BTN_DONE;
     $('#btn-review-skip').textContent = CONFIG.REVIEW_BTN_SKIP;
-    $('#btn-review-rate').addEventListener('click', () => window.open(CONFIG.GOOGLE_REVIEW_URL, '_blank'));
+    $('#btn-review-rate').href = CONFIG.GOOGLE_REVIEW_URL;
     $('#btn-review-done').addEventListener('click', () => show('s-wheel'));
     $('#btn-review-skip').addEventListener('click', () => show('s-wheel'));
 
