@@ -243,6 +243,17 @@
       </div>
     </section>
 
+    <!-- 4b. Avaliação no Google (opcional, só quando as 3 notas do CSAT são 5) -->
+    <section class="screen" id="s-review">
+      <div class="card">
+        <h2 tabindex="-1" id="review-title"></h2>
+        <p id="review-text"></p>
+        <button class="btn" id="btn-review-rate" type="button"></button>
+        <button class="btn ghost" id="btn-review-done" type="button"></button>
+        <button class="link" id="btn-review-skip" type="button" style="display:block;margin:14px auto 0"></button>
+      </div>
+    </section>
+
     <!-- 5. Roleta -->
     <section class="screen" id="s-wheel">
       <div class="card" style="text-align:center">
@@ -327,6 +338,15 @@ const CONFIG = {
   COUPON_POLICY_TEXT: 'Válido para sua próxima visita. Não cumulativo com outras promoções ou descontos. Válido por {dias} dias a partir da data de emissão.',
 
   CONSENT_TEXT: 'Ao continuar, você concorda com o uso do seu nome e WhatsApp pelo estabelecimento para fins desta pesquisa e do resgate do prêmio.',
+
+  // Etapa opcional de avaliação no Google — só aparece quando as 3 notas do CSAT são 5.
+  // Trocar pelo link de avaliação do Place ID de cada cliente.
+  GOOGLE_REVIEW_URL: 'https://search.google.com/local/writereview?placeid=ChIJ8c9z_0j_zpQR2PkScmZf2KI',
+  REVIEW_TITLE: 'Ficamos felizes que você gostou!',
+  REVIEW_TEXT: 'Sua avaliação no Google ajuda outras pessoas a conhecerem o nosso trabalho.',
+  REVIEW_BTN_RATE: 'Avaliar no Google',
+  REVIEW_BTN_DONE: 'Já avaliei',
+  REVIEW_BTN_SKIP: 'Pular',
 
   QUESTIONS: [
     'Como foi a qualidade da comida e o sabor?',
@@ -606,6 +626,12 @@ const CONFIG = {
     }, 400);
   }
 
+  // Depois do feedback aberto: só mostra a tela de avaliação no Google quando as 3 notas do
+  // CSAT foram 5; qualquer nota menor vai direto para a roleta, como antes.
+  function afterFeedback() {
+    show(state.notas.every(n => n === 5) ? 's-review' : 's-wheel');
+  }
+
   /* ---------- 5. Roleta ---------- */
   const SLICE_COLORS = [
     { bg: '#000000', fg: '#FFD100' },
@@ -850,8 +876,17 @@ const CONFIG = {
       show('s-csat');
     });
 
-    $('#btn-comment').addEventListener('click', () => { state.comentario = $('#in-comment').value.trim(); show('s-wheel'); });
-    $('#btn-skip').addEventListener('click', () => { state.comentario = ''; show('s-wheel'); });
+    $('#btn-comment').addEventListener('click', () => { state.comentario = $('#in-comment').value.trim(); afterFeedback(); });
+    $('#btn-skip').addEventListener('click', () => { state.comentario = ''; afterFeedback(); });
+
+    $('#review-title').textContent = CONFIG.REVIEW_TITLE;
+    $('#review-text').textContent = CONFIG.REVIEW_TEXT;
+    $('#btn-review-rate').textContent = CONFIG.REVIEW_BTN_RATE;
+    $('#btn-review-done').textContent = CONFIG.REVIEW_BTN_DONE;
+    $('#btn-review-skip').textContent = CONFIG.REVIEW_BTN_SKIP;
+    $('#btn-review-rate').addEventListener('click', () => window.open(CONFIG.GOOGLE_REVIEW_URL, '_blank'));
+    $('#btn-review-done').addEventListener('click', () => show('s-wheel'));
+    $('#btn-review-skip').addEventListener('click', () => show('s-wheel'));
 
     $('#btn-spin').addEventListener('click', spin);
     $('#btn-reg-retry').addEventListener('click', retryRegister);
