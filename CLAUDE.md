@@ -73,7 +73,27 @@ Nunca incluir uma fatia "sem prêmio" — a promessa da tela de boas-vindas é p
 
 - `CONFIG.COUPON_VALIDITY_DAYS` (30) e, no `Code.gs`, a constante `COUPON_VALIDITY_DAYS` — **manter as duas iguais**; a regra que vale é a do backend.
 - O cupom vale até o fim do último dia, contado a partir da data de emissão (Data/Hora da linha), no fuso `TIMEZONE` do `Code.gs` (`America/Sao_Paulo`).
-- `validate` verifica, nesta ordem: senha, cupom existe, já utilizado, **expirado** (`"Cupom expirado"`), status válido.
+- `validate` verifica, nesta ordem: senha, cupom existe, já utilizado (`"Concluído"`), **expirado** (`"Cupom expirado"`: status `"Vencido"` **ou** `Pendente` com a Data/Hora além do prazo), status válido.
+- Status Uso tem três valores: `"Pendente"` → `"Concluído"` (usado a tempo) ou `"Vencido"`. `"Concluído"` nunca vira `"Vencido"`.
+
+### Gatilho diário — `marcarCuponsVencidos`
+
+A função `marcarCuponsVencidos()` do `Code.gs` varre a planilha e muda `Pendente` → `Vencido` quando passou de `COUPON_VALIDITY_DAYS` (linhas com Data/Hora ilegível são ignoradas). Para instalar como gatilho diário (uma vez por planilha/cliente):
+
+1. Abra a planilha do cliente → menu **Extensões → Apps Script**.
+2. Confirme que o `Code.gs` colado é o atual e clique em **Salvar** (ícone de disquete ou Ctrl+S).
+3. Rode uma vez manualmente para conceder a autorização: no seletor de função da barra superior escolha **`marcarCuponsVencidos`** e clique em **Executar**. Na janela "Autorização necessária": **Revisar permissões** → escolha a conta → **Avançar** (ou "Avançado" → "Acessar ... (não seguro)") → **Permitir**. Confira o resultado em **Execuções** / registro de execução (`N cupom(ns) marcado(s) como Vencido`).
+4. No menu lateral esquerdo clique no ícone de **relógio (Acionadores / Triggers)**.
+5. Clique em **+ Adicionar acionador** (canto inferior direito) e configure:
+   - Função a ser executada: `marcarCuponsVencidos`
+   - Implantação a ser executada: `Head`
+   - Origem do evento: **Baseado no tempo**
+   - Tipo de acionador baseado em tempo: **Timer diário**
+   - Horário: **2h às 3h** (madrugada)
+6. Clique em **Salvar**. O horário segue o fuso do projeto (**Configurações do projeto** → Fuso horário; use `America/Sao_Paulo`).
+7. Para o webhook usar o `Code.gs` novo: **Implantar → Gerenciar implantações → lápis (Editar) → Versão: Nova versão → Implantar** (mesma implantação, a URL não muda). O gatilho roda o código salvo (Head) e não depende disso.
+
+Os nomes dos menus podem variar levemente conforme o idioma e a versão do editor do Apps Script.
 - A tela do cupom mostra "Válido até dd/mm/aaaa" e um texto de políticas discreto (`CONFIG.COUPON_POLICY_TEXT`, com `{dias}`): "Válido para sua próxima visita. Não cumulativo com outras promoções ou descontos. Válido por 30 dias a partir da data de emissão."
 
 ## Geolocalização — restringir participação à proximidade do restaurante
@@ -113,18 +133,22 @@ Requisito novo: só permitir gerar cupom se o dispositivo estiver fisicamente pe
 | 7 | Nota Ambiente | 1–5 |
 | 8 | Comentário | pode ser vazio |
 | 9 | Premio Roleta | texto do prêmio sorteado |
-| 10 | Status Uso | `"Pendente"` (default) → `"Concluído"` |
+| 10 | Status Uso | `"Pendente"` (default) → `"Concluído"` ou `"Vencido"` |
 
 ## Contrato do backend (`Code.gs`)
 
 `doPost(e)` recebe JSON com campo `action`:
 
 - **`action: "register"`** — insere uma nova linha com `Status Uso = "Pendente"`. Retorna `{ ok: true }`.
-- **`action: "validate"`** — recebe `cupom` e `senha`. Compara senha contra `CASHIER_PASSWORD` (constante no topo do `Code.gs`). Busca o cupom na planilha:
+- **`action: "validate"`** — recebe `cupom`, `senha` e `requestId` (opcional, ver abaixo). Compara senha contra `CASHIER_PASSWORD` (constante no topo do `Code.gs`). Busca o cupom na planilha:
+  - senha errada → `{ ok: false, error: "Senha incorreta" }` (checada primeiro)
   - não encontrado → `{ ok: false, error: "Cupom não encontrado" }`
   - já `"Concluído"` → `{ ok: false, error: "Cupom já utilizado" }`
-  - senha errada → `{ ok: false, error: "Senha incorreta" }`
+  - `"Vencido"` ou `Pendente` além do prazo → `{ ok: false, error: "Cupom expirado" }`
   - válido e pendente → atualiza status, retorna `{ ok: true, premio, nome }`
+  - **Idempotência:** o front-end gera um `requestId` por clique em "Validar cupom" e o reenvia igual nas repetições (retry de `api()`, ou novo clique após falha de rede). Um `validate` bem-sucedido fica guardado 10 min no `CacheService` sob esse `requestId`; se chegar de novo (mesmo `requestId` e mesmo cupom), devolve o mesmo sucesso em vez de "Cupom já utilizado". Só sucessos são guardados, e a senha continua sendo conferida antes. Um cupom realmente já usado (outro `requestId`) segue dando "Cupom já utilizado".
+
+O front-end (`api()`) repete uma vez, após `CONFIG.API_RETRY_DELAY_MS` (1 s), qualquer resposta sem o campo `ok` ou falha de rede/timeout; erros de negócio (`ok:false`) não são repetidos. O `register` é idempotente no backend (mesmo cupom + nome + WhatsApp devolve `ok:true`).
 
 Enviar o `fetch` do front-end com `Content-Type: text/plain;charset=utf-8` (não `application/json`) — evita o preflight CORS que o Apps Script não trata bem. O `e.postData.contents` continua sendo o JSON string normalmente.
 

@@ -312,6 +312,7 @@ const CONFIG = {
 
   COUPON_PREFIX: 'UND',
   STORAGE_KEY: 'underline-pesquisa',
+  API_RETRY_DELAY_MS: 1000,   // espera antes da 2ª tentativa quando a resposta do webhook vem inválida
 
   // Limite de 1 participação por aparelho por dia (data local do aparelho, via localStorage).
   // false: desliga o bloqueio (útil em testes).
@@ -358,7 +359,8 @@ const CONFIG = {
 
   const state = {
     nome: '', whatsapp: '', notas: [null, null, null], qIndex: 0,
-    comentario: '', prize: null, cupom: '', spun: false, used: false, emitido: ''
+    comentario: '', prize: null, cupom: '', spun: false, used: false, emitido: '',
+    validateRequestId: ''
   };
 
   /* ---------- Utilidades ---------- */
@@ -429,7 +431,8 @@ const CONFIG = {
   }
 
   /* ---------- API (Apps Script) ---------- */
-  async function api(payload) {
+  // Uma tentativa. Devolve o JSON da resposta, ou null em falha de rede, timeout ou corpo que não seja JSON.
+  async function apiOnce(payload) {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 20000);
     try {
@@ -441,10 +444,26 @@ const CONFIG = {
       });
       return await res.json();
     } catch (e) {
-      return { ok: false, network: true, error: 'Sem conexão com o servidor. Verifique sua internet e tente novamente.' };
+      return null;
     } finally {
       clearTimeout(timer);
     }
+  }
+
+  // Resposta sem o campo `ok` (ou falha de rede) é tratada como falha transitória:
+  // uma nova tentativa após API_RETRY_DELAY_MS, e só então o erro chega ao usuário.
+  async function api(payload) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      if (attempt > 0) await new Promise(r => setTimeout(r, CONFIG.API_RETRY_DELAY_MS));
+      const r = await apiOnce(payload);
+      if (r && typeof r.ok === 'boolean') return r;
+    }
+    return { ok: false, network: true, error: 'Não foi possível se comunicar com o servidor. Verifique sua internet e tente novamente.' };
+  }
+
+  function newRequestId() {
+    if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+    return Date.now().toString(36) + '-' + Math.floor(rand() * 1e9).toString(36) + '-' + Math.floor(rand() * 1e9).toString(36);
   }
 
   /* ---------- Marca ---------- */
@@ -786,7 +805,11 @@ const CONFIG = {
     btn.disabled = true;
     btn.textContent = 'Validando...';
     setMsg(msg, '');
-    const r = await api({ action: 'validate', cupom: state.cupom, senha: pass });
+    // Mesmo requestId em todas as tentativas (inclusive o retry de api()) até haver resposta
+    // definitiva: o backend usa isso para não tratar a nossa repetição como uso duplicado.
+    if (!state.validateRequestId) state.validateRequestId = newRequestId();
+    const r = await api({ action: 'validate', cupom: state.cupom, senha: pass, requestId: state.validateRequestId });
+    if (!r.network) state.validateRequestId = '';
     btn.disabled = false;
     btn.textContent = 'Validar cupom';
     if (r.ok) {

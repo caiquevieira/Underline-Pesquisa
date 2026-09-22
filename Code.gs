@@ -15,6 +15,8 @@ var TIMEZONE = 'America/Sao_Paulo';
 var COUPON_VALIDITY_DAYS = 30;
 var STATUS_PENDING = 'Pendente';
 var STATUS_DONE = 'Concluído';
+var STATUS_EXPIRED = 'Vencido';       // Definido por marcarCuponsVencidos (gatilho diário)
+var IDEMPOTENCY_TTL_SECONDS = 600;    // Quanto tempo um validate bem-sucedido fica repetível pelo mesmo requestId
 
 // Ordem exata das colunas — não alterar.
 var HEADERS = [
@@ -105,20 +107,76 @@ function validate_(b) {
     return { ok: false, error: 'Senha incorreta' };
   }
 
+  var cupom = str_(b.cupom, 20).toUpperCase();
+
+  // Idempotência: o front-end reenvia o MESMO requestId ao repetir uma chamada cuja resposta
+  // se perdeu. Se aquela chamada já validou o cupom, devolvemos o sucesso guardado em vez de
+  // "Cupom já utilizado". Um cupom realmente já usado (outro requestId) continua dando erro.
+  var requestId = str_(b.requestId, 64);
+  var cacheKey = requestId ? 'validate:' + requestId : '';
+  var cache = CacheService.getScriptCache();
+  if (cacheKey) {
+    var hit = cache.get(cacheKey);
+    if (hit) {
+      var saved = JSON.parse(hit);
+      if (saved.cupom === cupom) return saved.result;
+    }
+  }
+
   var sheet = getSheet_();
-  var rowIndex = findRow_(sheet, str_(b.cupom, 20).toUpperCase());
+  var rowIndex = findRow_(sheet, cupom);
   if (!rowIndex) return { ok: false, error: 'Cupom não encontrado' };
 
   var row = sheet.getRange(rowIndex, 1, 1, HEADERS.length).getValues()[0];
   var status = String(row[COL.STATUS - 1]).trim();
 
   if (status === STATUS_DONE) return { ok: false, error: 'Cupom já utilizado' };
-  if (isExpired_(row[COL.DATA - 1])) return { ok: false, error: 'Cupom expirado' };
+  if (status === STATUS_EXPIRED || isExpired_(row[COL.DATA - 1])) {
+    return { ok: false, error: 'Cupom expirado' };
+  }
   if (status !== STATUS_PENDING) return { ok: false, error: 'Status do cupom inválido' };
 
   sheet.getRange(rowIndex, COL.STATUS).setValue(STATUS_DONE);
   SpreadsheetApp.flush();
-  return { ok: true, premio: row[COL.PREMIO - 1], nome: row[COL.NOME - 1] };
+
+  var result = { ok: true, premio: row[COL.PREMIO - 1], nome: row[COL.NOME - 1] };
+  if (cacheKey) {
+    cache.put(cacheKey, JSON.stringify({ cupom: cupom, result: result }), IDEMPOTENCY_TTL_SECONDS);
+  }
+  return result;
+}
+
+/**
+ * Rotina para gatilho diário: muda de "Pendente" para "Vencido" os cupons que passaram
+ * de COUPON_VALIDITY_DAYS. Não mexe em "Concluído" (foi usado a tempo) nem em linhas
+ * cuja Data/Hora não possa ser lida. Devolve quantas linhas mudou.
+ */
+function marcarCuponsVencidos() {
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(30000)) {
+    Logger.log('marcarCuponsVencidos: servidor ocupado, nada foi alterado.');
+    return 0;
+  }
+  try {
+    var sheet = getSheet_();
+    var last = sheet.getLastRow();
+    if (last < 2) return 0;
+
+    var rows = sheet.getRange(2, 1, last - 1, HEADERS.length).getValues();
+    var changed = 0;
+    for (var i = 0; i < rows.length; i++) {
+      var status = String(rows[i][COL.STATUS - 1]).trim();
+      if (status === STATUS_PENDING && isExpired_(rows[i][COL.DATA - 1])) {
+        sheet.getRange(i + 2, COL.STATUS).setValue(STATUS_EXPIRED);
+        changed++;
+      }
+    }
+    if (changed) SpreadsheetApp.flush();
+    Logger.log('marcarCuponsVencidos: ' + changed + ' cupom(ns) marcado(s) como Vencido.');
+    return changed;
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 // ---- Utilitários -------------------------------------------------------------
