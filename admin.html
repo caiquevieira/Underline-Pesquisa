@@ -150,11 +150,18 @@
      isto aqui garante a mesma ALTURA DE VERDADE (não só a caixa externa, que o grid já
      estica igual): o gráfico ocupa o espaço restante depois do título/subtítulo/legenda de
      cada card, então os dois desenhos ficam alinhados mesmo com textos de tamanhos diferentes. */
+  /* min-width:0 é o ajuste real aqui — sem ele, um item de grid (qualquer .panel dentro de
+     .panel-grid, não só .nps-panel) usa o min-width:auto padrão, que significa "pelo menos o
+     tamanho mínimo do meu conteúdo" (ex.: o canvas do gráfico tem largura intrínseca própria
+     mesmo redimensionado por CSS). Isso fazia o card ficar mais largo que a própria célula do
+     grid — confirmado medindo: 342px de card dentro de uma célula de 335px, em TODAS as
+     linhas de .panel-grid do painel, não só a de NPS. */
+  .panel-grid > .panel { min-width: 0; }
   .nps-panel { display: flex; flex-direction: column; }
   /* height:auto sobrescreve o height:220px fixo de .chart-wrap — sem isso, a altura explícita
      compete com o flex-grow e os dois gráficos ficam com tamanhos diferentes mesmo com os
      cards (caixa externa) já do mesmo tamanho. */
-  .nps-panel .chart-wrap { height: auto; flex: 1 1 auto; min-height: 220px; }
+  .nps-panel .chart-wrap { height: auto; flex: 1 1 auto; min-height: 220px; min-width: 0; }
   .panel {
     background: var(--card); border: 1px solid var(--border);
     box-shadow: var(--shadow); border-radius: 14px; padding: 18px 20px;
@@ -829,7 +836,9 @@
   }
 
   /* ---------- Evolução da nota média por categoria (mesma lógica de drilldown, 3 séries) ---------- */
-  const CAT_COLORS = ['#B08D00', '#000000', '#B3261E']; // Comida, Atendimento, Ambiente — #FFD100 puro não lê bem em linha fina
+  // Comida, Atendimento, Ambiente — paleta pastel (azul suave, roxo lavanda, verde teal),
+  // mesma cor na linha e na legenda (Chart.js já pega isso de borderColor/backgroundColor).
+  const CAT_COLORS = ['#64B5F6', '#BA68C8', '#4DB6AC'];
 
   function renderCatTrend(rows) {
     if (catTrendDrilldownMonth) renderCatTrendDaily(rows, catTrendDrilldownMonth);
