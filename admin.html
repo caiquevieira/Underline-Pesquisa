@@ -91,14 +91,19 @@
   .topbar-brand img { height: 32px; width: 32px; object-fit: contain; border-radius: 8px; }
   .topbar h1 { font-size: 20px; font-weight: 800; margin: 0; }
   .topbar .sub { font-size: 13px; color: var(--muted); margin-top: 2px; }
-  .topbar-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-  .btn-logout {
+  .btn-secondary {
     background: #fff; border: 1.5px solid var(--border);
     border-radius: 999px; padding: 8px 18px;
     font-size: 13px; font-weight: 700; cursor: pointer;
     white-space: nowrap;
   }
-  .btn-logout:disabled { opacity: .5; cursor: not-allowed; }
+  .btn-secondary:disabled { opacity: .5; cursor: not-allowed; }
+  .panel-header-row {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    gap: 12px; flex-wrap: wrap; margin-bottom: 14px;
+  }
+  .panel-header-row .panel-sub { margin-bottom: 0; }
+  .panel-caption { font-size: 12px; color: var(--muted); text-align: center; margin-top: 8px; }
   .link {
     background: none; border: 0; padding: 4px 0; margin-bottom: 10px;
     font-size: 12.5px; font-weight: 700; color: var(--ink);
@@ -173,24 +178,6 @@
   }
   .page-btn:disabled { opacity: .4; cursor: not-allowed; }
 
-  /* Promotores / Neutros / Detratores */
-  .nps-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-    gap: 12px;
-  }
-  .nps-card { border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
-  .nps-card .nps-label { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; margin-bottom: 6px; }
-  .nps-card .nps-value { font-size: 22px; font-weight: 800; }
-  .nps-card .nps-value .unit { font-size: 13px; font-weight: 600; color: var(--muted); }
-  .nps-card .nps-count { font-size: 12px; color: var(--muted); margin-top: 2px; }
-  .nps-card .nps-delta { font-size: 12px; font-weight: 700; margin-top: 6px; }
-  .nps-delta.up { color: #216E29; }
-  .nps-delta.down { color: #8A2E2E; }
-  .nps-delta.flat { color: var(--muted); }
-  .nps-promoter { background: #E3F3E4; }
-  .nps-neutral { background: #FFF4CC; }
-  .nps-detractor { background: #F3E3E3; }
 
   /* Paginação da tabela */
   .pagination {
@@ -251,10 +238,7 @@
         <div class="sub" id="period-label">Carregando período…</div>
       </div>
     </div>
-    <div class="topbar-actions">
-      <button class="btn-logout" id="btn-export" type="button">Exportar (.xlsx)</button>
-      <button class="btn-logout" id="btn-logout" type="button">Sair</button>
-    </div>
+    <button class="btn-secondary" id="btn-logout" type="button">Sair</button>
   </div>
 
   <div class="filter-bar">
@@ -282,10 +266,19 @@
     </div>
   </div>
 
-  <div class="panel">
-    <h2>Promotores, Neutros e Detratores</h2>
-    <p class="panel-sub">Pela média das 3 notas do CSAT — Promotor ≥ 4,5 · Neutro 3,5–4,4 · Detrator &lt; 3,5</p>
-    <div class="nps-grid" id="nps-grid"></div>
+  <div class="panel-grid">
+    <div class="panel">
+      <h2>Promotores, Neutros e Detratores</h2>
+      <p class="panel-sub">Distribuição do período selecionado — Promotor ≥ 4,5 · Neutro 3,5–4,4 · Detrator &lt; 3,5</p>
+      <div class="chart-wrap" style="height:220px"><canvas id="chart-nps-donut"></canvas></div>
+      <div id="nps-donut-caption" class="panel-caption"></div>
+    </div>
+    <div class="panel">
+      <h2>Evolução de Promotores, Neutros e Detratores</h2>
+      <p class="panel-sub" id="nps-trend-sub">Visão mensal, sempre com o histórico completo (não muda com o filtro Tudo/30/7 dias acima) — clique num ponto para ver os dias daquele mês</p>
+      <button class="link" id="btn-nps-trend-back" type="button" hidden>&larr; Voltar para visão mensal</button>
+      <div class="chart-wrap"><canvas id="chart-nps-trend"></canvas></div>
+    </div>
   </div>
 
   <div class="panel-grid">
@@ -296,10 +289,17 @@
       <div class="chart-wrap"><canvas id="chart-trend"></canvas></div>
     </div>
     <div class="panel">
-      <h2>Nota média por categoria</h2>
-      <p class="panel-sub">Comida, atendimento e ambiente</p>
-      <div id="breakdown-cats"></div>
+      <h2>Evolução da nota média por categoria</h2>
+      <p class="panel-sub" id="cat-trend-sub">Comida, atendimento e ambiente — visão mensal, clique num ponto para ver os dias daquele mês</p>
+      <button class="link" id="btn-cat-trend-back" type="button" hidden>&larr; Voltar para visão mensal</button>
+      <div class="chart-wrap"><canvas id="chart-cat-trend"></canvas></div>
     </div>
+  </div>
+
+  <div class="panel">
+    <h2>Nota média por categoria</h2>
+    <p class="panel-sub">Comida, atendimento e ambiente — média do período selecionado, de relance</p>
+    <div id="breakdown-cats"></div>
   </div>
 
   <div class="panel-grid">
@@ -316,8 +316,13 @@
   </div>
 
   <div class="panel">
-    <h2>Respostas recentes</h2>
-    <p class="panel-sub">Todas as respostas do período selecionado, 20 por página</p>
+    <div class="panel-header-row">
+      <div>
+        <h2>Analítico de respostas</h2>
+        <p class="panel-sub">Todas as respostas do período selecionado, 20 por página</p>
+      </div>
+      <button class="btn-secondary" id="btn-export" type="button">Exportar (.xlsx)</button>
+    </div>
     <div class="table-scroll">
       <table>
         <thead>
@@ -385,6 +390,20 @@
   let trendDrilldownMonth = null; // null = visão mensal; "YYYY-MM" = visão diária daquele mês
   let trendMonthKeys = [];   // labels do último gráfico mensal renderizado, na ordem das barras/pontos
   let tablePage = 1;         // página atual da tabela de respostas (20 por página)
+
+  // Evolução da nota média por categoria (mesmo padrão de drilldown do gráfico geral acima,
+  // respeitando o filtro Tudo/30/7 — estado próprio, independente do trendDrilldownMonth geral).
+  let catTrendChart = null;
+  let catTrendDrilldownMonth = null;
+  let catTrendMonthKeys = [];
+
+  // Promotores/Neutros/Detratores: rosca (respeita o filtro de período, como o resto do
+  // painel) + evolução temporal (deliberadamente INDEPENDENTE do filtro Tudo/30/7 — sempre a
+  // partir de ALL — por isso tem seu próprio estado de drilldown, nunca resetado pelo filtro).
+  let npsDonutChart = null;
+  let npsTrendChart = null;
+  let npsTrendDrilldownMonth = null;
+  let npsTrendMonthKeys = [];
 
   // Cortes de Promotor/Neutro/Detrator sobre a média das 3 notas do CSAT (1–5). Não é NPS de
   // verdade (a pesquisa não tem a pergunta de 0–10) — é uma régua análoga, documentada aqui e
@@ -540,6 +559,8 @@
     ALL = [];
     currentRows = [];
     trendDrilldownMonth = null;
+    catTrendDrilldownMonth = null;
+    npsTrendDrilldownMonth = null;
     tablePage = 1;
     dashboard.style.display = 'none';
     loginScreen.style.display = 'flex';
@@ -583,8 +604,10 @@
     // Cada seção é independente: se uma falhar (CDN do gráfico bloqueado, por exemplo), o
     // resto do painel continua funcionando.
     safeRender(renderKPIs, rows);
-    safeRender(renderNPS, rows);
+    safeRender(renderNPSDoughnut, rows);
+    safeRender(renderNPSTrend); // sempre a partir de ALL — não recebe `rows` (filtrado) de propósito
     safeRender(renderTrend, rows);
+    safeRender(renderCatTrend, rows);
     safeRender(renderCategoryBreakdown, rows);
     safeRender(renderPrizes, rows);
     safeRender(renderStatus, rows);
@@ -627,42 +650,37 @@
     return c;
   }
 
-  function renderNPS(rows) {
-    const total = rows.length || 1;
+  const NPS_COLORS = { promoter: '#216E29', neutral: '#7A5D00', detractor: '#8A2E2E' };
+  const NPS_LABELS = { promoter: 'Promotores', neutral: 'Neutros', detractor: 'Detratores' };
+
+  // Rosca: distribuição do período selecionado (respeita o filtro Tudo/30/7, como o resto do painel).
+  function renderNPSDoughnut(rows) {
     const counts = npsCounts(rows);
+    const total = rows.length || 1;
+    const keys = ['promoter', 'neutral', 'detractor'];
 
-    // Comparação com o período anterior equivalente só existe pra filtros de 7/30 dias — pra
-    // "Tudo" não há um "período anterior" natural, então mostramos isso em vez de inventar um recorte.
-    let prevCounts = null, prevTotal = 0;
-    if (currentDays > 0) {
-      const prevRows = rowsInRange(currentDays, currentDays * 2);
-      prevTotal = prevRows.length;
-      if (prevTotal) prevCounts = npsCounts(prevRows);
-    }
-
-    const defs = [
-      { key: 'promoter', label: 'Promotores', cls: 'nps-promoter' },
-      { key: 'neutral', label: 'Neutros', cls: 'nps-neutral' },
-      { key: 'detractor', label: 'Detratores', cls: 'nps-detractor' }
-    ];
-
-    $('#nps-grid').innerHTML = defs.map(d => {
-      const pct = Math.round(counts[d.key] / total * 100);
-      let deltaHtml = '<div class="nps-delta flat">Sem período anterior para comparar</div>';
-      if (prevCounts) {
-        const prevPct = Math.round(prevCounts[d.key] / prevTotal * 100);
-        const delta = pct - prevPct;
-        const cls = delta > 0 ? 'up' : (delta < 0 ? 'down' : 'flat');
-        const sign = delta > 0 ? '+' : '';
-        deltaHtml = '<div class="nps-delta ' + cls + '">' + sign + delta + ' p.p. vs. período anterior</div>';
+    const ctx = $('#chart-nps-donut').getContext('2d');
+    if (npsDonutChart) npsDonutChart.destroy();
+    npsDonutChart = new Chart(ctx, {
+      type: 'doughnut',
+      data: {
+        labels: keys.map(k => NPS_LABELS[k]),
+        datasets: [{
+          data: keys.map(k => counts[k]),
+          backgroundColor: keys.map(k => NPS_COLORS[k]),
+          borderColor: '#fff', borderWidth: 2
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 11 } } },
+          tooltip: { callbacks: { label: c => c.label + ': ' + c.parsed + ' (' + Math.round(c.parsed / total * 100) + '%)' } }
+        }
       }
-      return '<div class="nps-card ' + d.cls + '">' +
-        '<div class="nps-label">' + d.label + '</div>' +
-        '<div class="nps-value">' + pct + '<span class="unit">%</span></div>' +
-        '<div class="nps-count">' + counts[d.key] + ' de ' + total + '</div>' +
-        deltaHtml +
-      '</div>';
-    }).join('');
+    });
+
+    $('#nps-donut-caption').textContent = rows.length + ' resposta' + (rows.length === 1 ? '' : 's') + ' no período selecionado';
   }
 
   /* ---------- Evolução da nota média (mensal, com drilldown pro dia) ---------- */
@@ -672,6 +690,18 @@
   function monthLabelOf(key) {
     const parts = key.split('-').map(Number);
     return MONTH_NAMES[parts[1] - 1] + '/' + parts[0];
+  }
+
+  // Agrupa linhas por chave (keyFn recebe a LINHA inteira, ex.: r => monthKeyOf(r.data)),
+  // devolvendo { chave: [linhas...] } — reaproveitado pelos três gráficos temporais (nota
+  // geral, por categoria, evolução do NPS).
+  function groupByPeriod(rows, keyFn) {
+    const groups = {};
+    rows.slice().sort((a, b) => a.data - b.data).forEach(r => {
+      const k = keyFn(r);
+      (groups[k] = groups[k] || []).push(r);
+    });
+    return groups;
   }
 
   // Dispatcher: chamado sempre pelo mesmo nome (renderTrend) pelo safeRender/renderAll/pelos
@@ -760,6 +790,80 @@
     });
   }
 
+  /* ---------- Evolução da nota média por categoria (mesma lógica de drilldown, 3 séries) ---------- */
+  const CAT_COLORS = ['#B08D00', '#000000', '#B3261E']; // Comida, Atendimento, Ambiente — #FFD100 puro não lê bem em linha fina
+
+  function renderCatTrend(rows) {
+    if (catTrendDrilldownMonth) renderCatTrendDaily(rows, catTrendDrilldownMonth);
+    else renderCatTrendMonthly(rows);
+  }
+
+  function renderCatTrendMonthly(rows) {
+    $('#cat-trend-sub').textContent = 'Comida, atendimento e ambiente — visão mensal, clique num ponto para ver os dias daquele mês';
+    $('#btn-cat-trend-back').hidden = true;
+
+    const byMonth = groupByPeriod(rows, r => monthKeyOf(r.data));
+    catTrendMonthKeys = Object.keys(byMonth).sort();
+    const labels = catTrendMonthKeys.map(monthLabelOf);
+    const buckets = catTrendMonthKeys.map(k => byMonth[k]);
+
+    buildCatTrendChart(labels, buckets, index => {
+      const key = catTrendMonthKeys[index];
+      if (!key) return;
+      catTrendDrilldownMonth = key;
+      safeRender(renderCatTrend, currentRows);
+    });
+  }
+
+  function renderCatTrendDaily(rows, monthKeyValue) {
+    $('#cat-trend-sub').textContent = 'Comida, atendimento e ambiente — dias de ' + monthLabelOf(monthKeyValue);
+    $('#btn-cat-trend-back').hidden = false;
+
+    const dayRows = rows.filter(r => monthKeyOf(r.data) === monthKeyValue);
+    const byDay = groupByPeriod(dayRows, r => dayKeyOf(r.data));
+    const keys = Object.keys(byDay).sort();
+    const labels = keys.map(k => k.slice(-2));
+    const buckets = keys.map(k => byDay[k]);
+
+    buildCatTrendChart(labels, buckets, null);
+  }
+
+  // `buckets`: um array de linhas por rótulo do eixo X (um mês ou um dia cada).
+  function buildCatTrendChart(labels, buckets, onPointClick) {
+    const datasets = CATS.map((c, i) => ({
+      label: c.label,
+      data: buckets.map(b => b.length ? Math.round((b.reduce((a, r) => a + r.notas[c.idx], 0) / b.length) * 100) / 100 : null),
+      borderColor: CAT_COLORS[i],
+      backgroundColor: CAT_COLORS[i],
+      borderWidth: 2, pointRadius: 3, pointHoverRadius: 6, pointHitRadius: 10, tension: 0.3, fill: false, spanGaps: true
+    }));
+
+    const ctx = $('#chart-cat-trend').getContext('2d');
+    if (catTrendChart) catTrendChart.destroy();
+    catTrendChart = new Chart(ctx, {
+      type: 'line',
+      data: { labels, datasets },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: true, position: 'bottom', labels: { boxWidth: 10, font: { size: 10.5 } } } },
+        onClick: onPointClick ? (evt, elements) => {
+          if (elements && elements.length) onPointClick(elements[0].index);
+        } : undefined,
+        onHover: onPointClick ? (evt, elements) => {
+          if (evt && evt.native && evt.native.target) {
+            evt.native.target.style.cursor = elements.length ? 'pointer' : 'default';
+          }
+        } : undefined,
+        scales: {
+          y: { min: 1, max: 5, ticks: { stepSize: 1, font: { size: 11 } }, grid: { color: '#F0F0F0' } },
+          x: { ticks: { font: { size: 10 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 8 }, grid: { display: false } }
+        }
+      }
+    });
+  }
+
+  // Resumo estático "de relance" do período selecionado — mantido ao lado do gráfico de
+  // evolução por categoria acima (o gráfico mostra a tendência; este mostra o valor atual).
   function renderCategoryBreakdown(rows) {
     const total = rows.length || 1;
     const html = CATS.map(c => {
@@ -772,6 +876,77 @@
       '</div>';
     }).join('');
     $('#breakdown-cats').innerHTML = html;
+  }
+
+  /* ---------- Evolução de Promotores/Neutros/Detratores (SEMPRE a partir de ALL — não muda
+     com o filtro Tudo/30/7 de propósito, pedido explícito; drilldown próprio, mesma lógica) ---------- */
+  function renderNPSTrend() {
+    const rows = ALL.filter(r => r.data);
+    if (npsTrendDrilldownMonth) renderNPSTrendDaily(rows, npsTrendDrilldownMonth);
+    else renderNPSTrendMonthly(rows);
+  }
+
+  function renderNPSTrendMonthly(rows) {
+    $('#nps-trend-sub').textContent = 'Visão mensal, sempre com o histórico completo (não muda com o filtro Tudo/30/7 dias acima) — clique num ponto para ver os dias daquele mês';
+    $('#btn-nps-trend-back').hidden = true;
+
+    const byMonth = groupByPeriod(rows, r => monthKeyOf(r.data));
+    npsTrendMonthKeys = Object.keys(byMonth).sort();
+    const labels = npsTrendMonthKeys.map(monthLabelOf);
+    const buckets = npsTrendMonthKeys.map(k => byMonth[k]);
+
+    buildNPSTrendChart(labels, buckets, index => {
+      const key = npsTrendMonthKeys[index];
+      if (!key) return;
+      npsTrendDrilldownMonth = key;
+      safeRender(renderNPSTrend);
+    });
+  }
+
+  function renderNPSTrendDaily(rows, monthKeyValue) {
+    $('#nps-trend-sub').textContent = 'Histórico completo — dias de ' + monthLabelOf(monthKeyValue);
+    $('#btn-nps-trend-back').hidden = false;
+
+    const dayRows = rows.filter(r => monthKeyOf(r.data) === monthKeyValue);
+    const byDay = groupByPeriod(dayRows, r => dayKeyOf(r.data));
+    const keys = Object.keys(byDay).sort();
+    const labels = keys.map(k => k.slice(-2));
+    const buckets = keys.map(k => byDay[k]);
+
+    buildNPSTrendChart(labels, buckets, null);
+  }
+
+  // Barras 100% empilhadas: cada rótulo do eixo X soma 100% entre Promotor/Neutro/Detrator.
+  function buildNPSTrendChart(labels, buckets, onPointClick) {
+    const keys = ['promoter', 'neutral', 'detractor'];
+    const datasets = keys.map(k => ({
+      label: NPS_LABELS[k],
+      data: buckets.map(b => { const c = npsCounts(b); return b.length ? Math.round(c[k] / b.length * 100) : 0; }),
+      backgroundColor: NPS_COLORS[k]
+    }));
+
+    const ctx = $('#chart-nps-trend').getContext('2d');
+    if (npsTrendChart) npsTrendChart.destroy();
+    npsTrendChart = new Chart(ctx, {
+      type: 'bar',
+      data: { labels, datasets },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: true, position: 'bottom', labels: { boxWidth: 10, font: { size: 10.5 } } } },
+        onClick: onPointClick ? (evt, elements) => {
+          if (elements && elements.length) onPointClick(elements[0].index);
+        } : undefined,
+        onHover: onPointClick ? (evt, elements) => {
+          if (evt && evt.native && evt.native.target) {
+            evt.native.target.style.cursor = elements.length ? 'pointer' : 'default';
+          }
+        } : undefined,
+        scales: {
+          y: { stacked: true, min: 0, max: 100, ticks: { stepSize: 25, font: { size: 11 }, callback: v => v + '%' }, grid: { color: '#F0F0F0' } },
+          x: { stacked: true, ticks: { font: { size: 10 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 8 }, grid: { display: false } }
+        }
+      }
+    });
   }
 
   function renderPrizes(rows) {
@@ -885,15 +1060,26 @@
     trendDrilldownMonth = null;
     safeRender(renderTrend, currentRows);
   });
+  $('#btn-cat-trend-back').addEventListener('click', () => {
+    catTrendDrilldownMonth = null;
+    safeRender(renderCatTrend, currentRows);
+  });
+  $('#btn-nps-trend-back').addEventListener('click', () => {
+    npsTrendDrilldownMonth = null;
+    safeRender(renderNPSTrend);
+  });
   $('#btn-page-prev').addEventListener('click', () => { tablePage--; safeRender(renderTable, currentRows); });
   $('#btn-page-next').addEventListener('click', () => { tablePage++; safeRender(renderTable, currentRows); });
   document.querySelectorAll('.filter-bar .filter-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('.filter-bar .filter-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
-      // Muda o período: reseta o drilldown do gráfico e a página da tabela, senão o usuário
-      // ficaria "preso" na visão diária de um mês ou numa página que não existe mais no filtro novo.
+      // Muda o período: reseta o drilldown dos gráficos que dependem do filtro e a página da
+      // tabela, senão o usuário ficaria "preso" numa visão diária ou numa página que não existe
+      // mais no filtro novo. O drilldown da evolução do NPS NÃO é resetado aqui de propósito —
+      // ele é independente do filtro de período (ver renderNPSTrend).
       trendDrilldownMonth = null;
+      catTrendDrilldownMonth = null;
       tablePage = 1;
       renderAll(parseInt(btn.dataset.days, 10));
     });
