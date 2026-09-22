@@ -3,13 +3,16 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#FFD100">
+<meta name="theme-color" content="#F7F7F7">
 <title>Pesquisa de Satisfação</title>
 <style>
   :root {
     --gold: #FFD100;
     --black: #000000;
     --white: #FFFFFF;
+    --bg: #F7F7F7;
+    --card-border: #E0E0E0;
+    --card-shadow: 0 2px 8px rgba(0, 0, 0, .06);
     --font: "Avenir Next", "Montserrat", "Segoe UI", "Helvetica Neue", Arial, system-ui, sans-serif;
   }
   *, *::before, *::after { box-sizing: border-box; }
@@ -19,7 +22,7 @@
     margin: 0;
     min-height: 100vh;
     min-height: 100dvh;
-    background: var(--gold);
+    background: var(--bg);
     color: var(--black);
     font-family: var(--font);
     font-weight: 700;
@@ -34,7 +37,7 @@
     min-height: 100vh;
     min-height: 100dvh;
     margin: 0 auto;
-    padding: max(16px, env(safe-area-inset-top)) 16px max(20px, env(safe-area-inset-bottom));
+    padding: max(16px, env(safe-area-inset-top)) 16px calc(56px + env(safe-area-inset-bottom));
     display: flex;
     flex-direction: column;
   }
@@ -47,11 +50,11 @@
     justify-content: center;
   }
   .brand img { max-height: 48px; max-width: 70%; object-fit: contain; }
-  .brand span {
-    font-weight: 900;
-    font-size: 1.05rem;
-    letter-spacing: .16em;
-    text-transform: uppercase;
+  .brand .logo-placeholder {
+    display: inline-flex; align-items: center; justify-content: center;
+    border: 2px dashed var(--black); border-radius: 14px;
+    padding: 10px 22px; opacity: .55;
+    font-weight: 800; font-size: .72rem; letter-spacing: .1em; text-transform: uppercase;
   }
   main { flex: 1; display: flex; flex-direction: column; justify-content: center; }
 
@@ -64,9 +67,10 @@
 
   .card {
     background: var(--white);
-    border: 2px solid var(--black);
+    border: 1px solid var(--card-border);
     border-radius: 28px;
     padding: 24px 20px;
+    box-shadow: var(--card-shadow);
   }
   h1, h2 { margin: 0 0 10px; font-weight: 900; letter-spacing: -.02em; line-height: 1.1; outline: none; }
   h1 { font-size: 1.95rem; }
@@ -158,6 +162,23 @@
   .dim { opacity: .45; }
   .validity { margin: 14px 0 0; text-align: center; font-size: .85rem; font-weight: 800; }
   .policy { margin: 14px 0 0; font-size: .68rem; line-height: 1.4; font-weight: 600; opacity: .6; text-align: center; }
+
+  /* Rodapé fixo, presente em todas as telas */
+  .site-footer {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 5;
+    display: flex; justify-content: center;
+    padding: 10px max(16px, env(safe-area-inset-left)) max(10px, env(safe-area-inset-bottom));
+    background: rgba(247, 247, 247, .92);
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+    border-top: 1px solid var(--card-border);
+  }
+  .site-footer a {
+    display: inline-flex; align-items: center; gap: 8px;
+    color: var(--black); text-decoration: none;
+    font-size: .72rem; font-weight: 700; letter-spacing: .01em;
+  }
+  .site-footer img { height: 24px; width: 24px; object-fit: contain; border-radius: 6px; display: block; }
 
   @media (prefers-reduced-motion: reduce) {
     .screen.active, .q-body { animation: none; }
@@ -311,6 +332,13 @@
   </main>
 </div>
 
+<footer class="site-footer">
+  <a href="https://underlinelab.com.br" target="_blank" rel="noopener">
+    <img src="Assets/underline-logo.jpeg" alt="" width="24" height="24">
+    <span>Desenvolvido por Underline</span>
+  </a>
+</footer>
+
 <noscript><p style="padding:24px;text-align:center">Ative o JavaScript para participar da pesquisa.</p></noscript>
 
 <script>
@@ -322,7 +350,7 @@
 const CONFIG = {
   RESTAURANT_NAME: 'Restaurante Exemplo',
   LOGO_DATA_URI: '',        // data:image/...;base64,... (preferencial)
-  LOGO_URL: '',             // alternativa; se ambos vazios, usa o nome em texto
+  LOGO_URL: '',             // alternativa; se ambos vazios, mostra um placeholder "Seu logo aqui"
   WEBHOOK_URL: 'https://script.google.com/macros/s/AKfycbyIAAEirtDqZNlXj1l_MQBVrFzd7qK-WpoKiipm5VXhiHXGFb6pMQRCZ83KivYrpKCo/exec',
 
   // Geolocalização — SUBSTITUIR pelas coordenadas do restaurante.
@@ -510,9 +538,10 @@ const CONFIG = {
       img.alt = CONFIG.RESTAURANT_NAME;
       brand.appendChild(img);
     } else {
-      const s = document.createElement('span');
-      s.textContent = CONFIG.RESTAURANT_NAME;
-      brand.appendChild(s);
+      const ph = document.createElement('div');
+      ph.className = 'logo-placeholder';
+      ph.textContent = 'Seu logo aqui';
+      brand.appendChild(ph);
     }
     $('#consent').textContent = CONFIG.CONSENT_TEXT;
   }
