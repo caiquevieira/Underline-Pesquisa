@@ -195,12 +195,50 @@
   .name-cell { font-weight: 600; white-space: nowrap; }
   .empty-note { font-size: 13px; color: var(--muted); padding: 8px 0; }
 
-  .filter-bar { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
-  .filter-btn {
-    border: 1.5px solid var(--border); background: #fff; border-radius: 999px;
-    padding: 7px 14px; font-size: 12.5px; font-weight: 700; cursor: pointer; color: var(--muted);
+  /* Filtro por intervalo de datas (substitui os botões Tudo/30/7 dias) */
+  .date-range-bar { display: flex; gap: 16px; margin-bottom: 14px; flex-wrap: wrap; }
+  .date-field { display: flex; align-items: center; gap: 8px; }
+  .date-field label {
+    margin: 0; font-size: 12.5px; font-weight: 700; color: var(--muted);
+    text-transform: none; letter-spacing: 0;
   }
-  .filter-btn.active { background: #000; color: var(--gold); border-color: #000; }
+  .date-field input[type="date"] {
+    border: 1.5px solid var(--border); background: #fff; border-radius: 10px;
+    padding: 7px 10px; font-size: 13px; font-weight: 600; color: var(--ink);
+    font-family: inherit;
+  }
+  .date-field input[type="date"]:focus { outline: none; border-color: #000; }
+
+  /* Barra de filtros cruzados ativos (gerados por clique em gráfico) */
+  .active-filters-bar {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    margin-bottom: 14px; padding: 10px 14px;
+    background: #FFF9E0; border: 1px solid #F0DFA0; border-radius: 12px;
+  }
+  .active-filters-label { font-size: 12.5px; font-weight: 700; color: var(--muted); }
+  .filter-chips { display: flex; gap: 6px; flex-wrap: wrap; flex: 1; }
+  .filter-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: #000; color: var(--gold); border-radius: 999px;
+    padding: 4px 6px 4px 12px; font-size: 12px; font-weight: 700; white-space: nowrap;
+  }
+  .filter-chip-x {
+    background: rgba(255,255,255,.15); border: 0; color: inherit; cursor: pointer;
+    width: 18px; height: 18px; border-radius: 50%; font-size: 13px; line-height: 1;
+    display: inline-flex; align-items: center; justify-content: center; padding: 0;
+  }
+  .filter-chip-x:hover { background: rgba(255,255,255,.3); }
+
+  /* Barras clicáveis (Status dos cupons) — mesmo visual de .breakdown-row, agora um <button> */
+  .breakdown-row-clickable {
+    width: 100%; background: none; border: 0; padding: 0; font: inherit; text-align: left; cursor: pointer;
+    border-radius: 8px; transition: background .12s ease;
+  }
+  .breakdown-row-clickable:hover { background: rgba(0,0,0,.04); }
+  .breakdown-row-clickable.active .breakdown-label,
+  .breakdown-row-clickable.active .breakdown-value { color: #000; }
+  .breakdown-row-clickable.active .breakdown-bar-fill { background: #000; }
+
   .page-btn {
     border: 1.5px solid var(--border); background: #fff; border-radius: 999px;
     padding: 7px 14px; font-size: 12.5px; font-weight: 700; cursor: pointer; color: var(--ink);
@@ -270,10 +308,21 @@
     <button class="btn-secondary" id="btn-logout" type="button">Sair</button>
   </div>
 
-  <div class="filter-bar">
-    <button class="filter-btn active" data-days="0" type="button">Tudo</button>
-    <button class="filter-btn" data-days="30" type="button">Últimos 30 dias</button>
-    <button class="filter-btn" data-days="7" type="button">Últimos 7 dias</button>
+  <div class="date-range-bar">
+    <div class="date-field">
+      <label for="date-start">De</label>
+      <input type="date" id="date-start">
+    </div>
+    <div class="date-field">
+      <label for="date-end">Até</label>
+      <input type="date" id="date-end">
+    </div>
+  </div>
+
+  <div class="active-filters-bar" id="active-filters-bar" hidden>
+    <span class="active-filters-label">Filtros ativos:</span>
+    <div class="filter-chips" id="active-filters-chips"></div>
+    <button class="link" id="btn-clear-filters" type="button" style="margin:0">Limpar filtros</button>
   </div>
 
   <div class="kpi-grid">
@@ -304,8 +353,7 @@
     </div>
     <div class="panel nps-panel">
       <h2>Evolução de Promotores, Neutros e Detratores</h2>
-      <p class="panel-sub" id="nps-trend-sub">Visão mensal, sempre com o histórico completo (não muda com o filtro Tudo/30/7 dias acima) — clique num ponto para ver os dias daquele mês</p>
-      <button class="link" id="btn-nps-trend-back" type="button" hidden>&larr; Voltar para visão mensal</button>
+      <p class="panel-sub" id="nps-trend-sub">Sempre o histórico completo (ignora o filtro De/Até acima) — clique num ponto ou numa cor da barra para filtrar o painel inteiro por mês/faixa</p>
       <div class="chart-wrap"><canvas id="chart-nps-trend"></canvas></div>
     </div>
   </div>
@@ -313,14 +361,12 @@
   <div class="panel-grid">
     <div class="panel">
       <h2>Evolução da nota média</h2>
-      <p class="panel-sub" id="trend-sub">Visão mensal — clique num ponto para ver os dias daquele mês</p>
-      <button class="link" id="btn-trend-back" type="button" hidden>&larr; Voltar para visão mensal</button>
+      <p class="panel-sub" id="trend-sub">Visão mensal — clique num ponto para filtrar o painel inteiro por aquele mês</p>
       <div class="chart-wrap"><canvas id="chart-trend"></canvas></div>
     </div>
     <div class="panel">
       <h2>Evolução da nota média por categoria</h2>
-      <p class="panel-sub" id="cat-trend-sub">Comida, atendimento e ambiente — visão mensal, clique num ponto para ver os dias daquele mês</p>
-      <button class="link" id="btn-cat-trend-back" type="button" hidden>&larr; Voltar para visão mensal</button>
+      <p class="panel-sub" id="cat-trend-sub">Comida, atendimento e ambiente — visão mensal, clique num ponto para filtrar o painel inteiro por aquele mês</p>
       <div class="chart-wrap"><canvas id="chart-cat-trend"></canvas></div>
     </div>
   </div>
@@ -416,26 +462,39 @@
   let ALL = [];              // respostas carregadas do backend (só após login)
   let trendChart = null;
   let prizeChart = null;
-  let currentRows = [];      // último conjunto filtrado pelo período (Tudo/30/7) — usado pela
+  let currentRows = [];      // último conjunto filtrado (datas + cross-filters) — usado pela
                               // paginação da tabela e pela exportação, sem refiltrar ALL de novo
-  let currentDays = 0;       // período (Tudo/30/7) selecionado no momento
-  let trendDrilldownMonth = null; // null = visão mensal; "YYYY-MM" = visão diária daquele mês
-  let trendMonthKeys = [];   // labels do último gráfico mensal renderizado, na ordem das barras/pontos
   let tablePage = 1;         // página atual da tabela de respostas (20 por página)
 
-  // Evolução da nota média por categoria (mesmo padrão de drilldown do gráfico geral acima,
-  // respeitando o filtro Tudo/30/7 — estado próprio, independente do trendDrilldownMonth geral).
-  let catTrendChart = null;
-  let catTrendDrilldownMonth = null;
-  let catTrendMonthKeys = [];
+  // Filtro por intervalo de datas (substitui os antigos botões Tudo/30/7 dias). null = sem
+  // limite naquele lado. filterEndDate é levado até o FIM do dia na hora de filtrar.
+  let filterStartDate = null;
+  let filterEndDate = null;
 
-  // Promotores/Neutros/Detratores: rosca (respeita o filtro de período, como o resto do
-  // painel) + evolução temporal (deliberadamente INDEPENDENTE do filtro Tudo/30/7 — sempre a
-  // partir de ALL — por isso tem seu próprio estado de drilldown, nunca resetado pelo filtro).
+  // Cross-filtering (estilo Power BI): clicar num elemento de QUALQUER gráfico define um
+  // filtro nessa dimensão, e TODOS os painéis (inclusive o próprio gráfico clicado) são
+  // recalculados. Várias dimensões podem estar ativas ao mesmo tempo (E lógico entre elas).
+  // "month"/"day" também fazem o papel do antigo drilldown mensal→diário: os 3 gráficos
+  // temporais (nota geral, por categoria, evolução do NPS) leem esse MESMO estado
+  // compartilhado pra decidir visão mensal vs. diária, em vez de cada um ter sua própria
+  // variável — clicar num mês já dispara as duas coisas (drilldown daquele gráfico + filtro
+  // nos outros) de propósito, então não faz sentido ter dois estados separados que podem
+  // ficar dessincronizados.
+  let crossFilters = { month: null, day: null, premio: null, status: null, npsBucket: null };
+
+  let trendMonthKeys = [];   // labels do último gráfico mensal (ou dias, se em drilldown), na
+  let trendDayKeys = [];     // ordem das barras/pontos — usados pra converter índice de clique em chave
+  let catTrendChart = null;
+  let catTrendMonthKeys = [];
+  let catTrendDayKeys = [];
+
+  // Promotores/Neutros/Detratores: rosca (respeita data + cross-filters, como o resto do
+  // painel) + evolução temporal (IGNORA o filtro de datas de propósito — sempre a partir de
+  // ALL — mas RESPEITA os cross-filters de clique, inclusive os que ela mesma gera).
   let npsDonutChart = null;
   let npsTrendChart = null;
-  let npsTrendDrilldownMonth = null;
   let npsTrendMonthKeys = [];
+  let npsTrendDayKeys = [];
 
   // Cortes de Promotor/Neutro/Detrator sobre a média das 3 notas do CSAT (1–5). Não é NPS de
   // verdade (a pesquisa não tem a pergunta de 0–10) — é uma régua análoga, documentada aqui e
@@ -522,8 +581,8 @@
     btn.disabled = true;
     btn.textContent = 'Exportando...';
 
-    // Exporta exatamente o que está na tela: todas as respostas do período selecionado (Tudo/
-    // 30/7 dias), todas as páginas da tabela — não só a página atual.
+    // Exporta exatamente o que está na tela: todas as respostas do intervalo de datas e dos
+    // cross-filters ativos no momento, todas as páginas da tabela — não só a página atual.
     const cupons = currentRows.map(r => r.cupom).filter(Boolean);
     const r = await fetchExportData(senha, cupons);
 
@@ -601,9 +660,9 @@
     try { sessionStorage.removeItem(SESSION_KEY); } catch (e) { /* ignora */ }
     ALL = [];
     currentRows = [];
-    trendDrilldownMonth = null;
-    catTrendDrilldownMonth = null;
-    npsTrendDrilldownMonth = null;
+    filterStartDate = null;
+    filterEndDate = null;
+    crossFilters = { month: null, day: null, premio: null, status: null, npsBucket: null };
     tablePage = 1;
     dashboard.style.display = 'none';
     loginScreen.style.display = 'flex';
@@ -611,31 +670,114 @@
     $('#in-pass').focus();
   }
 
+  // dd/mm/aaaa -> 'yyyy-mm-dd' (formato exigido por <input type="date">).
+  function toDateInputValue(d) {
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+
   function showDashboard() {
     loginScreen.style.display = 'none';
     dashboard.style.display = 'block';
-    renderAll(0);
+
+    // Data inicial dos campos De/Até: o intervalo completo dos dados carregados, pra já
+    // mostrar tudo (equivalente ao antigo botão "Tudo") sem deixar os campos em branco.
+    const withDate = ALL.filter(r => r.data);
+    if (withDate.length) {
+      const oldest = withDate.reduce((a, r) => r.data < a ? r.data : a, withDate[0].data);
+      const newest = withDate.reduce((a, r) => r.data > a ? r.data : a, withDate[0].data);
+      filterStartDate = new Date(oldest.getFullYear(), oldest.getMonth(), oldest.getDate());
+      filterEndDate = new Date(newest.getFullYear(), newest.getMonth(), newest.getDate());
+      $('#date-start').value = toDateInputValue(filterStartDate);
+      $('#date-end').value = toDateInputValue(filterEndDate);
+    }
+
+    renderAll();
   }
 
-  /* ---------- Filtro de período + orquestração ---------- */
+  /* ---------- Filtro de datas + cross-filtering + orquestração ---------- */
   function fmtDate(d) {
     return String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0') + '/' + d.getFullYear();
   }
 
-  // Linhas com diferença em dias (now - r.data) dentro de (fromDays, toDays]. Com toDays=0
-  // (sem limite superior), é o próprio filtro "Tudo"/"últimos N dias" de sempre.
-  function rowsInRange(fromDays, toDays) {
-    const now = new Date();
-    const withDate = ALL.filter(r => r.data);
-    return withDate.filter(r => {
-      const diff = (now - r.data) / 86400000;
-      return diff > fromDays && (toDays <= 0 || diff <= toDays);
+  function endOfDay(d) {
+    const e = new Date(d);
+    e.setHours(23, 59, 59, 999);
+    return e;
+  }
+
+  // Aplica o intervalo De/Até. null em qualquer lado = sem limite naquele lado.
+  function rowsInDateRange(rows) {
+    return rows.filter(r => {
+      if (filterStartDate && r.data < filterStartDate) return false;
+      if (filterEndDate && r.data > endOfDay(filterEndDate)) return false;
+      return true;
     });
   }
 
-  function renderAll(days) {
-    currentDays = days;
-    const rows = rowsInRange(0, days);
+  // Aplica todas as dimensões de cross-filter ativas, em E lógico — cada clique em gráfico
+  // afeta esta função (e portanto todo o resto do painel) de forma uniforme.
+  function applyCrossFilters(rows) {
+    let out = rows;
+    if (crossFilters.month) out = out.filter(r => monthKeyOf(r.data) === crossFilters.month);
+    if (crossFilters.day) out = out.filter(r => dayKeyOf(r.data) === crossFilters.day);
+    if (crossFilters.premio) out = out.filter(r => r.premio === crossFilters.premio);
+    if (crossFilters.status) out = out.filter(r => r.status === crossFilters.status);
+    if (crossFilters.npsBucket) out = out.filter(r => npsBucket(r.media) === crossFilters.npsBucket);
+    return out;
+  }
+
+  // Conjunto usado por quase todo o painel: intervalo de datas + cross-filters.
+  function computeCurrentRows() {
+    return applyCrossFilters(rowsInDateRange(ALL.filter(r => r.data)));
+  }
+
+  // Só pra evolução do NPS: ignora o intervalo de datas de propósito, mas aplica os
+  // cross-filters normalmente (inclusive os que ela mesma gera ao clicar numa barra).
+  function computeNPSTrendRows() {
+    return applyCrossFilters(ALL.filter(r => r.data));
+  }
+
+  function hasAnyCrossFilter() {
+    return !!(crossFilters.month || crossFilters.day || crossFilters.premio || crossFilters.status || crossFilters.npsBucket);
+  }
+
+  // Limpa uma dimensão (chip individual) ou tudo (botão "Limpar filtros"); sempre re-renderiza.
+  function clearCrossFilter(key) {
+    if (key === 'month') { crossFilters.month = null; crossFilters.day = null; } // limpar o mês limpa o dia junto
+    else crossFilters[key] = null;
+    tablePage = 1;
+    renderAll();
+  }
+
+  function clearAllCrossFilters() {
+    crossFilters = { month: null, day: null, premio: null, status: null, npsBucket: null };
+    tablePage = 1;
+    renderAll();
+  }
+
+  function renderActiveFiltersBar() {
+    const bar = $('#active-filters-bar');
+    const chips = [];
+    if (crossFilters.month) {
+      chips.push({ key: 'month', label: crossFilters.day ? crossFilters.day.slice(-2) + ' de ' + monthLabelOf(crossFilters.month) : monthLabelOf(crossFilters.month) });
+    }
+    if (crossFilters.premio) chips.push({ key: 'premio', label: 'Prêmio: ' + crossFilters.premio });
+    if (crossFilters.status) chips.push({ key: 'status', label: 'Status: ' + crossFilters.status });
+    if (crossFilters.npsBucket) chips.push({ key: 'npsBucket', label: NPS_LABELS[crossFilters.npsBucket] });
+
+    if (!chips.length) { bar.hidden = true; return; }
+    bar.hidden = false;
+    $('#active-filters-chips').innerHTML = chips.map(c =>
+      '<span class="filter-chip">' + escapeHtml(c.label) +
+      '<button type="button" class="filter-chip-x" data-key="' + c.key + '" aria-label="Remover filtro">&times;</button></span>'
+    ).join('');
+    $('#active-filters-chips').querySelectorAll('.filter-chip-x').forEach(btn => {
+      btn.addEventListener('click', () => clearCrossFilter(btn.dataset.key));
+    });
+  }
+
+  function renderAll() {
+    const rows = computeCurrentRows();
     currentRows = rows;
 
     const now = new Date();
@@ -644,11 +786,13 @@
     $('#period-label').textContent = rows.length + ' resposta' + (rows.length === 1 ? '' : 's') +
       (rows.length ? ' · ' + fmtDate(oldest) + ' a ' + fmtDate(newest) : '');
 
+    renderActiveFiltersBar();
+
     // Cada seção é independente: se uma falhar (CDN do gráfico bloqueado, por exemplo), o
     // resto do painel continua funcionando.
     safeRender(renderKPIs, rows);
     safeRender(renderNPSDoughnut, rows);
-    safeRender(renderNPSTrend); // sempre a partir de ALL — não recebe `rows` (filtrado) de propósito
+    safeRender(renderNPSTrend); // ignora o intervalo de datas de propósito; calcula seu próprio conjunto
     safeRender(renderTrend, rows);
     safeRender(renderCatTrend, rows);
     safeRender(renderCategoryBreakdown, rows);
@@ -697,12 +841,15 @@
   // evolução em barras) e suas legendas, então trocar aqui já cobre os dois de uma vez.
   const NPS_COLORS = { promoter: '#81C784', neutral: '#FFD54F', detractor: '#E57373' };
   const NPS_LABELS = { promoter: 'Promotores', neutral: 'Neutros', detractor: 'Detratores' };
+  const NPS_BUCKET_KEYS = ['promoter', 'neutral', 'detractor']; // ordem fixa usada em toda parte
 
-  // Rosca: distribuição do período selecionado (respeita o filtro Tudo/30/7, como o resto do painel).
+  // Rosca: distribuição do período selecionado (data + cross-filters, como o resto do
+  // painel). Clicar numa fatia filtra o painel inteiro por aquela faixa (Promotor/Neutro/
+  // Detrator) — clicar de novo na mesma fatia desfaz.
   function renderNPSDoughnut(rows) {
     const counts = npsCounts(rows);
     const total = rows.length || 1;
-    const keys = ['promoter', 'neutral', 'detractor'];
+    const keys = NPS_BUCKET_KEYS;
 
     const ctx = $('#chart-nps-donut').getContext('2d');
     if (npsDonutChart) npsDonutChart.destroy();
@@ -721,6 +868,18 @@
         plugins: {
           legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 11 } } },
           tooltip: { callbacks: { label: c => c.label + ': ' + c.parsed + ' (' + Math.round(c.parsed / total * 100) + '%)' } }
+        },
+        onClick: (evt, elements) => {
+          if (!elements || !elements.length) return;
+          const key = keys[elements[0].index];
+          crossFilters.npsBucket = (crossFilters.npsBucket === key) ? null : key;
+          tablePage = 1;
+          renderAll();
+        },
+        onHover: (evt, elements) => {
+          if (evt && evt.native && evt.native.target) {
+            evt.native.target.style.cursor = elements.length ? 'pointer' : 'default';
+          }
         }
       }
     });
@@ -749,51 +908,50 @@
     return groups;
   }
 
-  // Dispatcher: chamado sempre pelo mesmo nome (renderTrend) pelo safeRender/renderAll/pelos
-  // cliques de drilldown — decide internamente se mostra a visão mensal ou a diária de um mês.
+  // Dispatcher: chamado sempre pelo mesmo nome (renderTrend) pelo safeRender/renderAll — decide
+  // mensal vs. diário a partir do cross-filter COMPARTILHADO crossFilters.month (não de uma
+  // variável própria), porque clicar num mês precisa fazer o drilldown deste gráfico E filtrar
+  // os outros ao mesmo tempo — as duas coisas são o mesmo clique, então é o mesmo estado.
   function renderTrend(rows) {
-    if (trendDrilldownMonth) renderTrendDaily(rows, trendDrilldownMonth);
+    if (crossFilters.month) renderTrendDaily(rows, crossFilters.month);
     else renderTrendMonthly(rows);
   }
 
   function renderTrendMonthly(rows) {
-    $('#trend-sub').textContent = 'Visão mensal — clique num ponto para ver os dias daquele mês';
-    $('#btn-trend-back').hidden = true;
+    $('#trend-sub').textContent = 'Visão mensal — clique num ponto para filtrar o painel inteiro por aquele mês';
 
-    const byMonth = {};
-    rows.slice().sort((a, b) => a.data - b.data).forEach(r => {
-      const k = monthKeyOf(r.data);
-      if (!byMonth[k]) byMonth[k] = [];
-      byMonth[k].push(r.media);
-    });
+    const byMonth = groupByPeriod(rows, r => monthKeyOf(r.data));
     trendMonthKeys = Object.keys(byMonth).sort();
     const labels = trendMonthKeys.map(monthLabelOf);
-    const values = trendMonthKeys.map(k => byMonth[k].reduce((a, b) => a + b, 0) / byMonth[k].length);
+    const values = trendMonthKeys.map(k => byMonth[k].reduce((a, r) => a + r.media, 0) / byMonth[k].length);
 
     buildTrendChart(labels, values, index => {
       const key = trendMonthKeys[index];
       if (!key) return;
-      trendDrilldownMonth = key;
-      safeRender(renderTrend, currentRows);
+      // Clicar no mesmo mês de novo desfaz o filtro (toggle) — senão troca pro mês clicado.
+      crossFilters.month = (crossFilters.month === key) ? null : key;
+      crossFilters.day = null;
+      tablePage = 1;
+      renderAll();
     });
   }
 
   function renderTrendDaily(rows, monthKeyValue) {
-    $('#trend-sub').textContent = 'Dias de ' + monthLabelOf(monthKeyValue);
-    $('#btn-trend-back').hidden = false;
+    $('#trend-sub').textContent = 'Dias de ' + monthLabelOf(monthKeyValue) + ' — clique num dia pra filtrar só por ele';
 
     const dayRows = rows.filter(r => monthKeyOf(r.data) === monthKeyValue);
-    const byDay = {};
-    dayRows.slice().sort((a, b) => a.data - b.data).forEach(r => {
-      const k = dayKeyOf(r.data);
-      if (!byDay[k]) byDay[k] = [];
-      byDay[k].push(r.media);
-    });
-    const keys = Object.keys(byDay).sort();
-    const labels = keys.map(k => k.slice(-2)); // só o número do dia
-    const values = keys.map(k => byDay[k].reduce((a, b) => a + b, 0) / byDay[k].length);
+    const byDay = groupByPeriod(dayRows, r => dayKeyOf(r.data));
+    trendDayKeys = Object.keys(byDay).sort();
+    const labels = trendDayKeys.map(k => k.slice(-2)); // só o número do dia
+    const values = trendDayKeys.map(k => byDay[k].reduce((a, r) => a + r.media, 0) / byDay[k].length);
 
-    buildTrendChart(labels, values, null); // sem novo nível de drilldown a partir do dia
+    buildTrendChart(labels, values, index => {
+      const key = trendDayKeys[index];
+      if (!key) return;
+      crossFilters.day = (crossFilters.day === key) ? null : key;
+      tablePage = 1;
+      renderAll();
+    });
   }
 
   function buildTrendChart(labels, values, onPointClick) {
@@ -840,14 +998,15 @@
   // mesma cor na linha e na legenda (Chart.js já pega isso de borderColor/backgroundColor).
   const CAT_COLORS = ['#64B5F6', '#BA68C8', '#4DB6AC'];
 
+  // Mesmo princípio do renderTrend acima: lê o cross-filter compartilhado crossFilters.month,
+  // não uma variável própria — clicar num mês faz o drilldown deste gráfico E filtra os outros.
   function renderCatTrend(rows) {
-    if (catTrendDrilldownMonth) renderCatTrendDaily(rows, catTrendDrilldownMonth);
+    if (crossFilters.month) renderCatTrendDaily(rows, crossFilters.month);
     else renderCatTrendMonthly(rows);
   }
 
   function renderCatTrendMonthly(rows) {
-    $('#cat-trend-sub').textContent = 'Comida, atendimento e ambiente — visão mensal, clique num ponto para ver os dias daquele mês';
-    $('#btn-cat-trend-back').hidden = true;
+    $('#cat-trend-sub').textContent = 'Comida, atendimento e ambiente — visão mensal, clique num ponto para filtrar o painel inteiro por aquele mês';
 
     const byMonth = groupByPeriod(rows, r => monthKeyOf(r.data));
     catTrendMonthKeys = Object.keys(byMonth).sort();
@@ -857,22 +1016,29 @@
     buildCatTrendChart(labels, buckets, index => {
       const key = catTrendMonthKeys[index];
       if (!key) return;
-      catTrendDrilldownMonth = key;
-      safeRender(renderCatTrend, currentRows);
+      crossFilters.month = (crossFilters.month === key) ? null : key;
+      crossFilters.day = null;
+      tablePage = 1;
+      renderAll();
     });
   }
 
   function renderCatTrendDaily(rows, monthKeyValue) {
-    $('#cat-trend-sub').textContent = 'Comida, atendimento e ambiente — dias de ' + monthLabelOf(monthKeyValue);
-    $('#btn-cat-trend-back').hidden = false;
+    $('#cat-trend-sub').textContent = 'Comida, atendimento e ambiente — dias de ' + monthLabelOf(monthKeyValue) + ' — clique num dia pra filtrar só por ele';
 
     const dayRows = rows.filter(r => monthKeyOf(r.data) === monthKeyValue);
     const byDay = groupByPeriod(dayRows, r => dayKeyOf(r.data));
-    const keys = Object.keys(byDay).sort();
-    const labels = keys.map(k => k.slice(-2));
-    const buckets = keys.map(k => byDay[k]);
+    catTrendDayKeys = Object.keys(byDay).sort();
+    const labels = catTrendDayKeys.map(k => k.slice(-2));
+    const buckets = catTrendDayKeys.map(k => byDay[k]);
 
-    buildCatTrendChart(labels, buckets, null);
+    buildCatTrendChart(labels, buckets, index => {
+      const key = catTrendDayKeys[index];
+      if (!key) return;
+      crossFilters.day = (crossFilters.day === key) ? null : key;
+      tablePage = 1;
+      renderAll();
+    });
   }
 
   // `buckets`: um array de linhas por rótulo do eixo X (um mês ou um dia cada).
@@ -925,48 +1091,78 @@
     $('#breakdown-cats').innerHTML = html;
   }
 
-  /* ---------- Evolução de Promotores/Neutros/Detratores (SEMPRE a partir de ALL — não muda
-     com o filtro Tudo/30/7 de propósito, pedido explícito; drilldown próprio, mesma lógica) ---------- */
+  /* ---------- Evolução de Promotores/Neutros/Detratores ----------
+     Base: computeNPSTrendRows() — SEMPRE ignora o filtro de datas De/Até (pedido explícito),
+     mas passa pelos cross-filters normalmente (inclusive os que este próprio gráfico gera).
+     Mensal vs. diário também lê crossFilters.month/.day, compartilhado com os outros dois
+     gráficos temporais — mesmo princípio de renderTrend/renderCatTrend acima. */
   function renderNPSTrend() {
-    const rows = ALL.filter(r => r.data);
-    if (npsTrendDrilldownMonth) renderNPSTrendDaily(rows, npsTrendDrilldownMonth);
+    const rows = computeNPSTrendRows();
+    if (crossFilters.month) renderNPSTrendDaily(rows, crossFilters.month);
     else renderNPSTrendMonthly(rows);
   }
 
   function renderNPSTrendMonthly(rows) {
-    $('#nps-trend-sub').textContent = 'Visão mensal, sempre com o histórico completo (não muda com o filtro Tudo/30/7 dias acima) — clique num ponto para ver os dias daquele mês';
-    $('#btn-nps-trend-back').hidden = true;
+    $('#nps-trend-sub').textContent = 'Sempre o histórico completo (ignora o filtro De/Até acima) — clique num ponto ou numa cor da barra para filtrar o painel inteiro por mês/faixa';
 
     const byMonth = groupByPeriod(rows, r => monthKeyOf(r.data));
     npsTrendMonthKeys = Object.keys(byMonth).sort();
     const labels = npsTrendMonthKeys.map(monthLabelOf);
     const buckets = npsTrendMonthKeys.map(k => byMonth[k]);
 
-    buildNPSTrendChart(labels, buckets, index => {
-      const key = npsTrendMonthKeys[index];
-      if (!key) return;
-      npsTrendDrilldownMonth = key;
-      safeRender(renderNPSTrend);
+    // Clicar na BARRA (fora de um segmento colorido específico) filtra só por mês; clicar
+    // dentro de um segmento (ex.: a parte verde de "Promotores") filtra por mês E pela faixa
+    // ao mesmo tempo — um único clique define os dois cross-filters de uma vez.
+    buildNPSTrendChart(labels, buckets, (index, datasetIndex) => {
+      const monthKey = npsTrendMonthKeys[index];
+      if (!monthKey) return;
+      const bucketKey = datasetIndex != null ? NPS_BUCKET_KEYS[datasetIndex] : null;
+      if (crossFilters.month === monthKey && (!bucketKey || crossFilters.npsBucket === bucketKey)) {
+        // clicar de novo no mesmo mês/segmento desfaz
+        crossFilters.month = null;
+        crossFilters.day = null;
+        if (bucketKey) crossFilters.npsBucket = null;
+      } else {
+        crossFilters.month = monthKey;
+        crossFilters.day = null;
+        if (bucketKey) crossFilters.npsBucket = bucketKey;
+      }
+      tablePage = 1;
+      renderAll();
     });
   }
 
   function renderNPSTrendDaily(rows, monthKeyValue) {
-    $('#nps-trend-sub').textContent = 'Histórico completo — dias de ' + monthLabelOf(monthKeyValue);
-    $('#btn-nps-trend-back').hidden = false;
+    $('#nps-trend-sub').textContent = 'Histórico completo — dias de ' + monthLabelOf(monthKeyValue) + ' — clique num dia pra filtrar só por ele';
 
     const dayRows = rows.filter(r => monthKeyOf(r.data) === monthKeyValue);
     const byDay = groupByPeriod(dayRows, r => dayKeyOf(r.data));
-    const keys = Object.keys(byDay).sort();
-    const labels = keys.map(k => k.slice(-2));
-    const buckets = keys.map(k => byDay[k]);
+    npsTrendDayKeys = Object.keys(byDay).sort();
+    const labels = npsTrendDayKeys.map(k => k.slice(-2));
+    const buckets = npsTrendDayKeys.map(k => byDay[k]);
 
-    buildNPSTrendChart(labels, buckets, null);
+    buildNPSTrendChart(labels, buckets, (index, datasetIndex) => {
+      const dayKey = npsTrendDayKeys[index];
+      if (!dayKey) return;
+      const bucketKey = datasetIndex != null ? NPS_BUCKET_KEYS[datasetIndex] : null;
+      if (crossFilters.day === dayKey && (!bucketKey || crossFilters.npsBucket === bucketKey)) {
+        crossFilters.day = null;
+        if (bucketKey) crossFilters.npsBucket = null;
+      } else {
+        crossFilters.day = dayKey;
+        if (bucketKey) crossFilters.npsBucket = bucketKey;
+      }
+      tablePage = 1;
+      renderAll();
+    });
   }
 
   // Barras 100% empilhadas: cada rótulo do eixo X soma 100% entre Promotor/Neutro/Detrator.
-  function buildNPSTrendChart(labels, buckets, onPointClick) {
-    const keys = ['promoter', 'neutral', 'detractor'];
-    const datasets = keys.map(k => ({
+  // onSegmentClick(index, datasetIndex): datasetIndex vem null se o clique não caiu em cima
+  // de nenhum segmento específico (Chart.js ainda assim reporta o índice do rótulo X mais
+  // próximo em modo 'index', então tratamos como "só o mês/dia, sem faixa").
+  function buildNPSTrendChart(labels, buckets, onSegmentClick) {
+    const datasets = NPS_BUCKET_KEYS.map(k => ({
       label: NPS_LABELS[k],
       data: buckets.map(b => { const c = npsCounts(b); return b.length ? Math.round(c[k] / b.length * 100) : 0; }),
       backgroundColor: NPS_COLORS[k]
@@ -979,15 +1175,17 @@
       data: { labels, datasets },
       options: {
         responsive: true, maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: true }, // permite identificar QUAL segmento foi clicado
         plugins: { legend: { display: true, position: 'bottom', labels: { boxWidth: 10, font: { size: 10.5 } } } },
-        onClick: onPointClick ? (evt, elements) => {
-          if (elements && elements.length) onPointClick(elements[0].index);
-        } : undefined,
-        onHover: onPointClick ? (evt, elements) => {
+        onClick: (evt, elements) => {
+          if (!elements || !elements.length) return;
+          onSegmentClick(elements[0].index, elements[0].datasetIndex);
+        },
+        onHover: (evt, elements) => {
           if (evt && evt.native && evt.native.target) {
             evt.native.target.style.cursor = elements.length ? 'pointer' : 'default';
           }
-        } : undefined,
+        },
         scales: {
           y: { stacked: true, min: 0, max: 100, ticks: { stepSize: 25, font: { size: 11 }, callback: v => v + '%' }, grid: { color: '#F0F0F0' } },
           x: { stacked: true, ticks: { font: { size: 10 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 8 }, grid: { display: false } }
@@ -996,6 +1194,7 @@
     });
   }
 
+  // Clicar numa barra filtra o painel inteiro por aquele prêmio (clicar de novo desfaz).
   function renderPrizes(rows) {
     const counts = {};
     rows.forEach(r => { counts[r.premio] = (counts[r.premio] || 0) + 1; });
@@ -1018,6 +1217,18 @@
       options: {
         responsive: true, maintainAspectRatio: false,
         plugins: { legend: { display: false } },
+        onClick: (evt, elements) => {
+          if (!elements || !elements.length) return;
+          const label = labels[elements[0].index];
+          crossFilters.premio = (crossFilters.premio === label) ? null : label;
+          tablePage = 1;
+          renderAll();
+        },
+        onHover: (evt, elements) => {
+          if (evt && evt.native && evt.native.target) {
+            evt.native.target.style.cursor = elements.length ? 'pointer' : 'default';
+          }
+        },
         scales: {
           y: { beginAtZero: true, ticks: { font: { size: 11 }, precision: 0 }, grid: { color: '#F0F0F0' } },
           x: { ticks: { font: { size: 10.5 } }, grid: { display: false } }
@@ -1026,19 +1237,33 @@
     });
   }
 
+  // Cada linha é um <button>: clicar filtra o painel inteiro por aquele status (clicar de
+  // novo no mesmo desfaz). Usa <button>, não <div>, pra ganhar foco/teclado de graça, igual
+  // a todo o resto dos elementos clicáveis do site.
   function renderStatus(rows) {
     const statuses = ['Pendente', 'Concluído', 'Vencido'];
     const total = rows.length || 1;
     const html = statuses.map(s => {
       const count = rows.filter(r => r.status === s).length;
       const pct = (count / total * 100).toFixed(0);
-      return '<div class="breakdown-row">' +
-        '<div class="breakdown-label">' + s + '</div>' +
-        '<div class="breakdown-bar-bg"><div class="breakdown-bar-fill" style="width:' + pct + '%"></div></div>' +
-        '<div class="breakdown-value">' + count + '</div>' +
-      '</div>';
+      const active = crossFilters.status === s ? ' active' : '';
+      return '<button type="button" class="breakdown-row-clickable' + active + '" data-status="' + escapeHtml(s) + '">' +
+        '<span class="breakdown-row">' +
+          '<span class="breakdown-label">' + s + '</span>' +
+          '<span class="breakdown-bar-bg"><span class="breakdown-bar-fill" style="width:' + pct + '%"></span></span>' +
+          '<span class="breakdown-value">' + count + '</span>' +
+        '</span>' +
+      '</button>';
     }).join('');
     $('#breakdown-status').innerHTML = html;
+    $('#breakdown-status').querySelectorAll('.breakdown-row-clickable').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const s = btn.dataset.status;
+        crossFilters.status = (crossFilters.status === s) ? null : s;
+        tablePage = 1;
+        renderAll();
+      });
+    });
   }
 
   function pillClass(status) {
@@ -1103,33 +1328,24 @@
   $('#in-pass').addEventListener('keydown', e => { if (e.key === 'Enter') tryLogin(); });
   $('#btn-logout').addEventListener('click', logout);
   $('#btn-export').addEventListener('click', exportXlsx);
-  $('#btn-trend-back').addEventListener('click', () => {
-    trendDrilldownMonth = null;
-    safeRender(renderTrend, currentRows);
-  });
-  $('#btn-cat-trend-back').addEventListener('click', () => {
-    catTrendDrilldownMonth = null;
-    safeRender(renderCatTrend, currentRows);
-  });
-  $('#btn-nps-trend-back').addEventListener('click', () => {
-    npsTrendDrilldownMonth = null;
-    safeRender(renderNPSTrend);
-  });
   $('#btn-page-prev').addEventListener('click', () => { tablePage--; safeRender(renderTable, currentRows); });
   $('#btn-page-next').addEventListener('click', () => { tablePage++; safeRender(renderTable, currentRows); });
-  document.querySelectorAll('.filter-bar .filter-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('.filter-bar .filter-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      // Muda o período: reseta o drilldown dos gráficos que dependem do filtro e a página da
-      // tabela, senão o usuário ficaria "preso" numa visão diária ou numa página que não existe
-      // mais no filtro novo. O drilldown da evolução do NPS NÃO é resetado aqui de propósito —
-      // ele é independente do filtro de período (ver renderNPSTrend).
-      trendDrilldownMonth = null;
-      catTrendDrilldownMonth = null;
-      tablePage = 1;
-      renderAll(parseInt(btn.dataset.days, 10));
-    });
+  $('#btn-clear-filters').addEventListener('click', clearAllCrossFilters);
+
+  // Filtro por intervalo de datas: não reseta os cross-filters (eles combinam em E lógico
+  // com o intervalo de datas — ver applyCrossFilters/computeCurrentRows), só a página da
+  // tabela, porque o conjunto de linhas mudou.
+  $('#date-start').addEventListener('change', () => {
+    const v = $('#date-start').value;
+    filterStartDate = v ? new Date(v + 'T00:00:00') : null;
+    tablePage = 1;
+    renderAll();
+  });
+  $('#date-end').addEventListener('change', () => {
+    const v = $('#date-end').value;
+    filterEndDate = v ? new Date(v + 'T00:00:00') : null; // levado até o fim do dia em endOfDay()
+    tablePage = 1;
+    renderAll();
   });
 
   /* =======================================================================
