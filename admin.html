@@ -133,6 +133,18 @@
   @media (max-width: 760px) {
     .panel-grid { grid-template-columns: 1fr; }
   }
+  /* Duas colunas exatamente iguais (a .panel-grid padrão é 1.4fr/1fr) — usada na seção de
+     Promotores/Neutros/Detratores, onde os dois cards precisam ficar simétricos. */
+  .panel-grid-even { grid-template-columns: 1fr 1fr; }
+  /* .panel já garante mesma largura/padding via .panel-grid-even + a classe .panel comum;
+     isto aqui garante a mesma ALTURA DE VERDADE (não só a caixa externa, que o grid já
+     estica igual): o gráfico ocupa o espaço restante depois do título/subtítulo/legenda de
+     cada card, então os dois desenhos ficam alinhados mesmo com textos de tamanhos diferentes. */
+  .nps-panel { display: flex; flex-direction: column; }
+  /* height:auto sobrescreve o height:220px fixo de .chart-wrap — sem isso, a altura explícita
+     compete com o flex-grow e os dois gráficos ficam com tamanhos diferentes mesmo com os
+     cards (caixa externa) já do mesmo tamanho. */
+  .nps-panel .chart-wrap { height: auto; flex: 1 1 auto; min-height: 220px; }
   .panel {
     background: var(--card); border: 1px solid var(--border);
     box-shadow: var(--shadow); border-radius: 14px; padding: 18px 20px;
@@ -266,14 +278,14 @@
     </div>
   </div>
 
-  <div class="panel-grid">
-    <div class="panel">
+  <div class="panel-grid panel-grid-even">
+    <div class="panel nps-panel">
       <h2>Promotores, Neutros e Detratores</h2>
       <p class="panel-sub">Distribuição do período selecionado — Promotor ≥ 4,5 · Neutro 3,5–4,4 · Detrator &lt; 3,5</p>
-      <div class="chart-wrap" style="height:220px"><canvas id="chart-nps-donut"></canvas></div>
+      <div class="chart-wrap"><canvas id="chart-nps-donut"></canvas></div>
       <div id="nps-donut-caption" class="panel-caption"></div>
     </div>
-    <div class="panel">
+    <div class="panel nps-panel">
       <h2>Evolução de Promotores, Neutros e Detratores</h2>
       <p class="panel-sub" id="nps-trend-sub">Visão mensal, sempre com o histórico completo (não muda com o filtro Tudo/30/7 dias acima) — clique num ponto para ver os dias daquele mês</p>
       <button class="link" id="btn-nps-trend-back" type="button" hidden>&larr; Voltar para visão mensal</button>
@@ -650,7 +662,9 @@
     return c;
   }
 
-  const NPS_COLORS = { promoter: '#216E29', neutral: '#7A5D00', detractor: '#8A2E2E' };
+  // Paleta pastel "Moderna & Suave" — mesma constante alimenta os dois gráficos (rosca e
+  // evolução em barras) e suas legendas, então trocar aqui já cobre os dois de uma vez.
+  const NPS_COLORS = { promoter: '#81C784', neutral: '#FFD54F', detractor: '#E57373' };
   const NPS_LABELS = { promoter: 'Promotores', neutral: 'Neutros', detractor: 'Detratores' };
 
   // Rosca: distribuição do período selecionado (respeita o filtro Tudo/30/7, como o resto do painel).

@@ -44,6 +44,8 @@ Não é NPS de verdade — a pesquisa não tem a pergunta de 0–10, só as 3 no
 
 - **Rosca (`renderNPSDoughnut`):** distribuição absoluta/percentual do período selecionado — respeita o filtro Tudo/30/7, como o resto do painel.
 - **Evolução (`renderNPSTrend`, barras 100% empilhadas):** composição de Promotor/Neutro/Detrator mês a mês, com o mesmo drilldown mensal→diário dos outros gráficos de tendência. **Deliberadamente independente do filtro de período** — sempre lida a partir de `ALL` (todo o histórico carregado), não de `currentRows`. Por isso tem seu próprio estado de drilldown (`npsTrendDrilldownMonth`), que **não** é resetado quando o filtro Tudo/30/7 muda (só pelo próprio botão de voltar ou pelo logout).
+- **Paleta (fixa, "Moderna & Suave"):** Promotor `#81C784` (verde sálvia), Neutro `#FFD54F` (amarelo trigo), Detrator `#E57373` (vermelho coral) — constante `NPS_COLORS`, única fonte pros dois gráficos e suas legendas (trocar as cores é editar só ali).
+- **Os dois cards ficam com largura, altura e padding idênticos**, diferente do resto do dashboard (que usa `.panel-grid` com colunas `1.4fr 1fr`, assimétrico de propósito): esta seção usa `.panel-grid.panel-grid-even` (`1fr 1fr`) e a classe `.nps-panel` (flex column, com `.chart-wrap` esticando pra preencher o espaço restante) — sem isso, os dois gráficos ficam com tamanhos ligeiramente diferentes mesmo com os cards do mesmo tamanho, porque um tem legenda/caption abaixo do gráfico e o outro tem um subtítulo mais longo acima.
 
 ### Gráficos de tendência com drilldown (nota geral e por categoria)
 
