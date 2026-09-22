@@ -249,8 +249,17 @@
         <h2 tabindex="-1" id="review-title"></h2>
         <p id="review-text"></p>
         <a class="btn" id="btn-review-rate" href="#" target="_blank" rel="noopener" style="text-decoration:none;text-align:center"></a>
-        <button class="btn ghost" id="btn-review-done" type="button"></button>
         <button class="link" id="btn-review-skip" type="button" style="display:block;margin:14px auto 0"></button>
+      </div>
+    </section>
+
+    <!-- 4c. Agradecimento — aparece sozinha ao clicar em "Avaliar no Google" -->
+    <section class="screen" id="s-review-thanks">
+      <div class="card">
+        <h2 tabindex="-1" id="review-thanks-title"></h2>
+        <p id="review-thanks-text"></p>
+        <button class="btn" id="btn-review-thanks-done" type="button"></button>
+        <button class="link" id="btn-review-thanks-skip" type="button" style="display:block;margin:14px auto 0"></button>
       </div>
     </section>
 
@@ -345,8 +354,12 @@ const CONFIG = {
   REVIEW_TITLE: 'Ficamos felizes que você gostou!',
   REVIEW_TEXT: 'Sua avaliação no Google ajuda outras pessoas a conhecerem o nosso trabalho.',
   REVIEW_BTN_RATE: 'Avaliar no Google',
-  REVIEW_BTN_DONE: 'Já avaliei',
   REVIEW_BTN_SKIP: 'Pular',
+  // 2ª tela: aparece assim que o cliente clica em "Avaliar no Google" (a aba nova abre e,
+  // ao mesmo tempo, a tela avança sozinha para esta — sem precisar de mais nenhuma ação).
+  REVIEW_THANKS_TITLE: 'Obrigado por avaliar!',
+  REVIEW_THANKS_TEXT: 'Quando terminar de escrever sua avaliação, toque no botão abaixo para continuar.',
+  REVIEW_BTN_DONE: 'Já avaliei',
 
   QUESTIONS: [
     'Como foi a qualidade da comida e o sabor?',
@@ -882,11 +895,18 @@ const CONFIG = {
     $('#review-title').textContent = CONFIG.REVIEW_TITLE;
     $('#review-text').textContent = CONFIG.REVIEW_TEXT;
     $('#btn-review-rate').textContent = CONFIG.REVIEW_BTN_RATE;
-    $('#btn-review-done').textContent = CONFIG.REVIEW_BTN_DONE;
     $('#btn-review-skip').textContent = CONFIG.REVIEW_BTN_SKIP;
     $('#btn-review-rate').href = CONFIG.GOOGLE_REVIEW_URL;
-    $('#btn-review-done').addEventListener('click', () => show('s-wheel'));
+    $('#review-thanks-title').textContent = CONFIG.REVIEW_THANKS_TITLE;
+    $('#review-thanks-text').textContent = CONFIG.REVIEW_THANKS_TEXT;
+    $('#btn-review-thanks-done').textContent = CONFIG.REVIEW_BTN_DONE;
+    $('#btn-review-thanks-skip').textContent = CONFIG.REVIEW_BTN_SKIP;
+    // O link abre a avaliação numa aba nova normalmente (target="_blank") e, ao mesmo
+    // tempo, a tela atual avança sozinha para o agradecimento — sem preventDefault.
+    $('#btn-review-rate').addEventListener('click', () => show('s-review-thanks'));
     $('#btn-review-skip').addEventListener('click', () => show('s-wheel'));
+    $('#btn-review-thanks-done').addEventListener('click', () => show('s-wheel'));
+    $('#btn-review-thanks-skip').addEventListener('click', () => show('s-wheel'));
 
     $('#btn-spin').addEventListener('click', spin);
     $('#btn-reg-retry').addEventListener('click', retryRegister);
