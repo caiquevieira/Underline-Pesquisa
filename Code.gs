@@ -7,7 +7,8 @@
  */
 
 // ---- Configuração por cliente -------------------------------------------
-var CASHIER_PASSWORD = '1234';        // Trocar por cliente
+var CASHIER_PASSWORD = '1234';        // Trocar por cliente — resgate de cupom (garçom/caixa)
+var ADMIN_PASSWORD = '1234';          // Trocar por cliente — painel administrativo (admin.html), papel separado da de cima
 var SHEET_NAME = '';                  // Vazio = primeira aba da planilha
 var TIMEZONE = 'America/Sao_Paulo';
 // Validade do cupom em dias, contada a partir da data de emissão (Data/Hora da linha).
@@ -49,6 +50,7 @@ function doPost(e) {
     switch (body && body.action) {
       case 'register': return json_(register_(body));
       case 'validate': return json_(validate_(body));
+      case 'admin': return json_(adminData_(body));
       default: return json_({ ok: false, error: 'Ação inválida' });
     }
   } catch (err) {
@@ -144,6 +146,38 @@ function validate_(b) {
     cache.put(cacheKey, JSON.stringify({ cupom: cupom, result: result }), IDEMPOTENCY_TTL_SECONDS);
   }
   return result;
+}
+
+/**
+ * Dados para o painel administrativo (admin.html). Senha própria (ADMIN_PASSWORD), separada
+ * da CASHIER_PASSWORD do resgate de cupom — são papéis diferentes. Nunca devolve a coluna
+ * WhatsApp, mesmo com a senha certa.
+ */
+function adminData_(b) {
+  if (String(b.senha == null ? '' : b.senha) !== String(ADMIN_PASSWORD)) {
+    return { ok: false, error: 'Senha incorreta' };
+  }
+
+  var sheet = getSheet_();
+  var last = sheet.getLastRow();
+  if (last < 2) return { ok: true, rows: [] };
+
+  var values = sheet.getRange(2, 1, last - 1, HEADERS.length).getValues();
+  var rows = values.map(function (row) {
+    var d = toDate_(row[COL.DATA - 1]);
+    return {
+      cupom: String(row[COL.CUPOM - 1]),
+      data: d ? d.toISOString() : null,     // instante absoluto; o front-end converte pro fuso local
+      nome: String(row[2]),                 // Nome (coluna 3) — sem WHATSAPP (coluna 4) de propósito
+      notaComida: Number(row[4]),
+      notaAtendimento: Number(row[5]),
+      notaAmbiente: Number(row[6]),
+      comentario: String(row[7]),
+      premio: String(row[COL.PREMIO - 1]),
+      status: String(row[COL.STATUS - 1])
+    };
+  });
+  return { ok: true, rows: rows };
 }
 
 /**

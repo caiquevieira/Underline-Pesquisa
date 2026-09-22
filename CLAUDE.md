@@ -4,7 +4,7 @@ Template reutilizável (multi-cliente) de pesquisa de satisfação com prêmio g
 
 ## Stack e restrições não-negociáveis
 
-- **Zero build step.** HTML + CSS + JS puro em um único arquivo `index.html` (self-contained, sem dependências externas de CDN/fonte — usar font-stack de sistema). Sem React, sem bundler.
+- **Zero build step.** HTML + CSS + JS puro, sem bundler, sem transpilação, sem React. `index.html` continua sem dependências externas de CDN/fonte (font-stack de sistema); `admin.html` é a única página que carrega algo externo (Chart.js via cdnjs — ver "Painel administrativo").
 - **Backend:** Google Apps Script (`Code.gs`) vinculado a uma planilha Google Sheets. Web app já existe e está deployado:
   - Webhook: `https://script.google.com/macros/s/AKfycbyIAAEirtDqZNlXj1l_MQBVrFzd7qK-WpoKiipm5VXhiHXGFb6pMQRCZ83KivYrpKCo/exec`
   - Ao atualizar o `Code.gs`, publicar como **nova versão do mesmo deployment** (não criar deployment novo) para manter essa URL viva.
@@ -12,16 +12,29 @@ Template reutilizável (multi-cliente) de pesquisa de satisfação com prêmio g
 - **Identidade visual (fixa, não é livre):** fundo da página cinza bem claro `#F7F7F7`, elementos e texto em preto absoluto `#000000`, cards de conteúdo em branco `#FFFFFF` com borda `1px solid #E0E0E0` e sombra leve (`0 2px 8px rgba(0,0,0,.06)`) para dar profundidade sutil. O amarelo/ouro `#FFD100` permanece como cor de acento (texto dos botões pretos, detalhes da roleta). Tipografia bold, geométrica, sem serifa. Botões grandes tipo pílula (border-radius total), pretos com texto amarelo/branco, feedback tátil no `:active` (scale down leve). Sem emojis na interface. Tom de voz direto, sem gírias — público de ticket médio-alto.
 - **Logo do cliente:** slot de imagem configurável (`CONFIG.LOGO_DATA_URI` ou `CONFIG.LOGO_URL`) no topo da página. Enquanto vazio, mostra um placeholder "Seu logo aqui" em caixa de borda pontilhada preta, no estilo visual do cupom — nunca o nome do restaurante em texto.
 - **Rodapé fixo (sempre visível, sem toggle):** em todas as telas, "Desenvolvido por Underline" + o logo da Underline (`Assets/underline-logo.jpeg`, ~24px de altura), os dois dentro de um único link para `https://underlinelab.com.br` (`target="_blank" rel="noopener"`). Não é configurável por cliente.
-- **Configuração no topo do arquivo:** todo dado específico de cliente (nome do restaurante, logo, webhook, prêmios, coordenadas, senha) deve viver em um objeto `CONFIG` único no topo do `<script>`, para reaproveitar o mesmo arquivo trocando só essas variáveis.
+- **Configuração compartilhada em `config.js`:** todo dado específico de cliente (nome do restaurante, logo, webhook, prêmios, coordenadas, textos...) vive em um único objeto `CONFIG`, em `config.js` — uma fonte só, carregada tanto por `index.html` quanto por `admin.html` (`<script src="config.js"></script>`, sempre antes do `<script>` de cada página). Reaplicar o template em outro cliente é trocar esse arquivo, sem tocar no resto. Não é um build step: é só um segundo arquivo estático.
+  - **Cuidado ao editar:** como `config.js` roda num `<script>` separado (não um módulo ES), seu `const CONFIG` só fica visível para o `<script>` inline de cada página porque os dois compartilham o mesmo escopo léxico de topo do documento — a tag `<script src="config.js">` precisa continuar vindo *antes* da tag `<script>` inline em ambas as páginas.
 
 ## Estrutura de arquivos
 
 ```
-index.html   → fluxo completo do cliente (única página)
-Code.gs      → backend Apps Script (registro + validação de cupom)
+index.html   → fluxo completo do cliente (participação na pesquisa + roleta)
+admin.html   → painel administrativo (dashboards) — ver seção própria abaixo
+config.js    → CONFIG compartilhado pelas duas páginas acima
+Code.gs      → backend Apps Script (registro, validação de cupom, dados do admin)
 ```
 
-Não existe mais página separada de caixa — decisão explícita: usar senha simples embutida na própria tela do cupom (ver seção "Validação do cupom"), aceitando a limitação de segurança conhecida (senha visível no código-fonte do navegador) como trade-off aceitável nesta fase.
+Não existe página separada de caixa — decisão explícita: usar senha simples embutida na própria tela do cupom em `index.html` (ver seção "Validação do cupom"), aceitando a limitação de segurança conhecida (senha visível no código-fonte do navegador) como trade-off aceitável nesta fase. `admin.html` é diferente: tem sua própria senha (`ADMIN_PASSWORD`), validada só no backend — ver "Painel administrativo".
+
+## Painel administrativo (`admin.html`)
+
+Dashboard de leitura para o dono/gestor do restaurante: KPIs, gráficos (Chart.js 4.4.1 via cdnjs — versão fixa, conferir que existe antes de trocar), tabela de respostas recentes, filtro por período (tudo / 30 dias / 7 dias, recalculado no cliente a partir de tudo que o backend devolveu).
+
+- **Login real, não cosmético:** o campo "Usuário" é só decorativo. O acesso só é liberado quando o backend confirma a senha e devolve os dados — nunca por comparação de string no `admin.html`. A senha (não um simples "logado: true") fica em `sessionStorage`, e a cada carregamento da página ela é reenviada ao backend para validar de novo; um valor adulterado no `sessionStorage` não dá acesso, porque cai na mesma checagem real do backend.
+- **Contrato do backend:** `action: "admin"` no `doPost`, com `{ senha }`. Retorna `{ ok: true, rows: [...] }` (cada linha com `cupom, data (ISO), nome, notaComida, notaAtendimento, notaAmbiente, comentario, premio, status` — **nunca** a coluna WhatsApp, mesmo com a senha certa) ou `{ ok: false, error }` sem vazar nenhum dado.
+- **Duas armadilhas já resolvidas, não reintroduzir:**
+  1. **Ordem de inicialização:** a chamada que de fato aciona a primeira renderização (`tryAutoLogin()`, no fim do script) precisa vir depois de **toda** declaração `let`/`const` do arquivo (ex.: `let trendChart, prizeChart`). Chamar antes é "acesso antes da inicialização" — o erro não fica contido, ele trava todo o código que viria depois no mesmo escopo (nada de listener de filtro, por exemplo, chega a ser registrado).
+  2. **`safeRender(fn, rows)`:** cada seção do dashboard (KPIs, tendência, categorias, prêmios, status, tabela) é chamada dentro desse wrapper com try/catch, logando no console em vez de propagar. Se um gráfico falhar (CDN bloqueado, lento etc.), o resto do painel continua funcionando.
 
 ## Fluxo de telas (uma por vez, transição por fade/slide)
 

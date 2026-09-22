@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#F7F7F7">
+<title>Painel administrativo</title>
+<style>
+  :root {
+    --gold: #FFD100;
+    --ink: #000000;
+    --page: #F7F7F7;
+    --card: #FFFFFF;
+    --border: #E0E0E0;
+    --muted: #6B6B6B;
+    --shadow: 0 2px 8px rgba(0,0,0,.06);
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    min-height: 100dvh;
+    background: var(--page);
+    color: var(--ink);
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+
+  /* ---------- Login ---------- */
+  #login-screen {
+    min-height: 100vh;
+    min-height: 100dvh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px 24px calc(24px + 56px);
+  }
+  .login-card {
+    width: 100%;
+    max-width: 360px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow);
+    border-radius: 16px;
+    padding: 32px 28px;
+  }
+  .login-card img { height: 48px; max-width: 70%; object-fit: contain; margin-bottom: 18px; display: block; }
+  .login-card .logo-placeholder {
+    display: inline-flex; align-items: center; justify-content: center;
+    border: 2px dashed var(--ink); border-radius: 14px;
+    padding: 10px 22px; margin-bottom: 18px; opacity: .55;
+    font-weight: 800; font-size: .72rem; letter-spacing: .1em; text-transform: uppercase;
+  }
+  .login-card h1 { font-size: 21px; font-weight: 800; margin: 0 0 6px; letter-spacing: -0.01em; }
+  .login-card p { font-size: 14px; color: var(--muted); margin: 0 0 24px; }
+  label { display: block; font-size: 13px; font-weight: 600; margin: 0 0 6px; }
+  .field { margin-bottom: 16px; }
+  input[type="text"], input[type="password"] {
+    width: 100%; padding: 12px 14px;
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    font-size: 16px;
+    background: #fff;
+  }
+  input:focus { outline: none; border-color: #000; }
+  .btn-primary {
+    width: 100%; padding: 14px;
+    background: #000; color: var(--gold);
+    border: none; border-radius: 999px;
+    font-size: 15px; font-weight: 700;
+    cursor: pointer;
+    transition: transform .12s ease, opacity .2s ease;
+  }
+  .btn-primary:active:not(:disabled) { transform: scale(0.98); }
+  .btn-primary:disabled { opacity: .5; cursor: not-allowed; }
+  .login-error {
+    color: #B3261E; font-size: 13px; font-weight: 600;
+    margin: -6px 0 16px; display: none;
+  }
+
+  /* ---------- Dashboard ---------- */
+  #dashboard { display: none; padding: 20px 20px calc(60px + 56px); max-width: 1180px; margin: 0 auto; }
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 24px; flex-wrap: wrap; gap: 12px;
+  }
+  .topbar-brand { display: flex; align-items: center; gap: 10px; }
+  .topbar-brand img { height: 32px; width: 32px; object-fit: contain; border-radius: 8px; }
+  .topbar h1 { font-size: 20px; font-weight: 800; margin: 0; }
+  .topbar .sub { font-size: 13px; color: var(--muted); margin-top: 2px; }
+  .btn-logout {
+    background: #fff; border: 1.5px solid var(--border);
+    border-radius: 999px; padding: 8px 18px;
+    font-size: 13px; font-weight: 700; cursor: pointer;
+  }
+
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .kpi-card {
+    background: var(--card); border: 1px solid var(--border);
+    box-shadow: var(--shadow); border-radius: 14px; padding: 16px 18px;
+  }
+  .kpi-label { font-size: 12px; color: var(--muted); font-weight: 600; margin-bottom: 6px; }
+  .kpi-value { font-size: 26px; font-weight: 800; letter-spacing: -0.01em; }
+  .kpi-value .unit { font-size: 14px; font-weight: 600; color: var(--muted); }
+
+  .panel-grid {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+  @media (max-width: 760px) {
+    .panel-grid { grid-template-columns: 1fr; }
+  }
+  .panel {
+    background: var(--card); border: 1px solid var(--border);
+    box-shadow: var(--shadow); border-radius: 14px; padding: 18px 20px;
+  }
+  .panel h2 { font-size: 15px; font-weight: 700; margin: 0 0 4px; }
+  .panel .panel-sub { font-size: 12px; color: var(--muted); margin: 0 0 14px; }
+  .chart-wrap { position: relative; height: 220px; }
+  .render-error {
+    font-size: 12.5px; color: var(--muted); padding: 12px 0;
+  }
+
+  .breakdown-row { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+  .breakdown-row:last-child { margin-bottom: 0; }
+  .breakdown-label { width: 92px; font-size: 13px; font-weight: 600; flex-shrink: 0; }
+  .breakdown-bar-bg { flex: 1; height: 8px; background: #EFEFEF; border-radius: 999px; overflow: hidden; }
+  .breakdown-bar-fill { height: 100%; background: var(--gold); border-radius: 999px; }
+  .breakdown-value { width: 34px; text-align: right; font-size: 13px; font-weight: 700; flex-shrink: 0; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; color: var(--muted); font-weight: 600; font-size: 11.5px;
+       padding: 8px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  td { padding: 10px 10px; border-bottom: 1px solid #F0F0F0; vertical-align: top; }
+  .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .pill { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 11.5px; font-weight: 700; white-space: nowrap; }
+  .pill-pendente { background: #FFF4CC; color: #7A5D00; }
+  .pill-concluido { background: #E3F3E4; color: #216E29; }
+  .pill-vencido { background: #F3E3E3; color: #8A2E2E; }
+  .stars { color: var(--muted); font-size: 12.5px; white-space: nowrap; }
+  .comment-cell { max-width: 260px; color: #333; }
+  .comment-empty { color: #B0B0B0; }
+  .name-cell { font-weight: 600; white-space: nowrap; }
+  .empty-note { font-size: 13px; color: var(--muted); padding: 8px 0; }
+
+  .filter-bar { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+  .filter-btn {
+    border: 1.5px solid var(--border); background: #fff; border-radius: 999px;
+    padding: 7px 14px; font-size: 12.5px; font-weight: 700; cursor: pointer; color: var(--muted);
+  }
+  .filter-btn.active { background: #000; color: var(--gold); border-color: #000; }
+
+  /* Rodapé fixo, igual ao index.html */
+  .site-footer {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 5;
+    display: flex; justify-content: center;
+    padding: 10px max(16px, env(safe-area-inset-left)) max(10px, env(safe-area-inset-bottom));
+    background: rgba(247, 247, 247, .92);
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+    border-top: 1px solid var(--border);
+  }
+  .site-footer a {
+    display: inline-flex; align-items: center; gap: 8px;
+    color: var(--ink); text-decoration: none;
+    font-size: .72rem; font-weight: 700; letter-spacing: .01em;
+  }
+  .site-footer img { height: 24px; width: 24px; object-fit: contain; border-radius: 6px; display: block; }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<div id="login-screen">
+  <div class="login-card">
+    <div id="login-logo"></div>
+    <h1 id="login-title">Painel administrativo</h1>
+    <p id="login-subtitle"></p>
+    <div>
+      <div class="field">
+        <label for="in-user">Usuário</label>
+        <input type="text" id="in-user" autocomplete="username" autocapitalize="off">
+      </div>
+      <div class="field">
+        <label for="in-pass">Senha</label>
+        <input type="password" id="in-pass" autocomplete="current-password">
+      </div>
+      <p class="login-error" id="login-error"></p>
+      <button type="button" class="btn-primary" id="btn-login">Entrar</button>
+    </div>
+  </div>
+</div>
+
+<div id="dashboard">
+  <div class="topbar">
+    <div class="topbar-brand">
+      <div id="topbar-logo"></div>
+      <div>
+        <h1 id="dash-title">Painel administrativo</h1>
+        <div class="sub" id="period-label">Carregando período…</div>
+      </div>
+    </div>
+    <button class="btn-logout" id="btn-logout" type="button">Sair</button>
+  </div>
+
+  <div class="filter-bar">
+    <button class="filter-btn active" data-days="0" type="button">Tudo</button>
+    <button class="filter-btn" data-days="30" type="button">Últimos 30 dias</button>
+    <button class="filter-btn" data-days="7" type="button">Últimos 7 dias</button>
+  </div>
+
+  <div class="kpi-grid">
+    <div class="kpi-card">
+      <div class="kpi-label">Respostas</div>
+      <div class="kpi-value" id="kpi-total">–</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Nota média geral</div>
+      <div class="kpi-value" id="kpi-media">– <span class="unit">/ 5</span></div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Cupons resgatados</div>
+      <div class="kpi-value" id="kpi-resgate">– <span class="unit">%</span></div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Com comentário</div>
+      <div class="kpi-value" id="kpi-comentarios">– <span class="unit">%</span></div>
+    </div>
+  </div>
+
+  <div class="panel-grid">
+    <div class="panel">
+      <h2>Evolução da nota média</h2>
+      <p class="panel-sub">Média semanal das 3 perguntas do CSAT</p>
+      <div class="chart-wrap"><canvas id="chart-trend"></canvas></div>
+    </div>
+    <div class="panel">
+      <h2>Nota média por categoria</h2>
+      <p class="panel-sub">Comida, atendimento e ambiente</p>
+      <div id="breakdown-cats"></div>
+    </div>
+  </div>
+
+  <div class="panel-grid">
+    <div class="panel">
+      <h2>Prêmios sorteados</h2>
+      <p class="panel-sub">Distribuição da roleta no período</p>
+      <div class="chart-wrap" style="height:200px"><canvas id="chart-prizes"></canvas></div>
+    </div>
+    <div class="panel">
+      <h2>Status dos cupons</h2>
+      <p class="panel-sub">Pendente, concluído ou vencido</p>
+      <div id="breakdown-status"></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Respostas recentes</h2>
+    <p class="panel-sub">As 20 respostas mais recentes do período selecionado</p>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Data</th>
+            <th>Cliente</th>
+            <th>Notas</th>
+            <th>Comentário</th>
+            <th>Prêmio</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="table-body"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<footer class="site-footer">
+  <a href="https://underlinelab.com.br" target="_blank" rel="noopener">
+    <img src="Assets/underline-logo.jpeg" alt="" width="24" height="24">
+    <span>Desenvolvido por Underline</span>
+  </a>
+</footer>
+
+<!-- CONFIG (nome do restaurante, logo, webhook...) vem de config.js, compartilhado com
+     index.html. Precisa carregar ANTES do script abaixo. -->
+<script src="config.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  /* =======================================================================
+   * Declarações (const/let) primeiro — TODAS, antes de qualquer function
+   * que as use ser CHAMADA. A checagem de sessão (final do arquivo) já
+   * dispara renderAll()/renderTrend()/renderPrizes(), que leem trendChart/
+   * prizeChart/ALL; se essas variáveis ainda não tiverem sido declaradas
+   * quando a checagem rodar, é "acesso antes da inicialização" e o erro
+   * (fora de qualquer safeRender) trava todo o script que viria depois.
+   * ===================================================================== */
+  const $ = (sel, root) => (root || document).querySelector(sel);
+  const loginScreen = $('#login-screen');
+  const dashboard = $('#dashboard');
+  const SESSION_KEY = 'underline-admin-session';
+  const CATS = [
+    { label: 'Comida', idx: 0 },
+    { label: 'Atendimento', idx: 1 },
+    { label: 'Ambiente', idx: 2 }
+  ];
+  const PRIZE_COLORS = ['#FFD100', '#000000', '#B3261E', '#6B6B6B', '#7A5D00', '#216E29'];
+
+  let ALL = [];              // respostas carregadas do backend (só após login)
+  let trendChart = null;
+  let prizeChart = null;
+
+  /* ---------- Marca (mesmo padrão do index.html) ---------- */
+  // Login: logo grande, com o mesmo placeholder pontilhado "Seu logo aqui" do index.html
+  // quando não há CONFIG.LOGO_DATA_URI/LOGO_URL.
+  function buildLoginLogo(target) {
+    const src = CONFIG.LOGO_DATA_URI || CONFIG.LOGO_URL;
+    if (src) {
+      const img = document.createElement('img');
+      img.src = src;
+      img.alt = CONFIG.RESTAURANT_NAME;
+      target.appendChild(img);
+    } else {
+      const ph = document.createElement('div');
+      ph.className = 'logo-placeholder';
+      ph.textContent = 'Seu logo aqui';
+      target.appendChild(ph);
+    }
+  }
+
+  // Topbar: só mostra o logo quando configurado (espaço pequeno demais pro placeholder).
+  function buildTopbarLogo(target) {
+    const src = CONFIG.LOGO_DATA_URI || CONFIG.LOGO_URL;
+    if (!src) return;
+    const img = document.createElement('img');
+    img.src = src;
+    img.alt = CONFIG.RESTAURANT_NAME;
+    target.appendChild(img);
+  }
+
+  /* ---------- Backend ---------- */
+  async function fetchAdminData(senha) {
+    try {
+      const res = await fetch(CONFIG.WEBHOOK_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // evita preflight CORS
+        body: JSON.stringify({ action: 'admin', senha: senha })
+      });
+      return await res.json();
+    } catch (e) {
+      return { ok: false, network: true, error: 'Não foi possível conectar ao servidor. Verifique sua internet.' };
+    }
+  }
+
+  function parseRow(r) {
+    const notas = [Number(r.notaComida), Number(r.notaAtendimento), Number(r.notaAmbiente)];
+    const media = (notas[0] + notas[1] + notas[2]) / 3;
+    const data = r.data ? new Date(r.data) : null;
+    return {
+      cupom: r.cupom || '',
+      data: data && !isNaN(data.getTime()) ? data : null,
+      nome: r.nome || '',
+      notas: notas,
+      media: media,
+      comentario: r.comentario || '',
+      premio: r.premio || '',
+      status: r.status || ''
+    };
+  }
+
+  /* ---------- Login ---------- */
+  async function tryLogin() {
+    const pass = $('#in-pass').value;
+    const btn = $('#btn-login');
+    const err = $('#login-error');
+    err.style.display = 'none';
+    btn.disabled = true;
+    btn.textContent = 'Entrando...';
+
+    const r = await fetchAdminData(pass);
+
+    btn.disabled = false;
+    btn.textContent = 'Entrar';
+
+    // Login só é considerado válido quando o backend de fato devolve os dados — nunca por
+    // comparação de string aqui no front-end.
+    if (r && r.ok === true && Array.isArray(r.rows)) {
+      ALL = r.rows.map(parseRow).sort((a, b) => (b.data || 0) - (a.data || 0));
+      try { sessionStorage.setItem(SESSION_KEY, pass); } catch (e) { /* ignora */ }
+      showDashboard();
+    } else {
+      err.textContent = (r && r.error) ? r.error : 'Não foi possível entrar.';
+      err.style.display = 'block';
+    }
+  }
+
+  function logout() {
+    try { sessionStorage.removeItem(SESSION_KEY); } catch (e) { /* ignora */ }
+    ALL = [];
+    dashboard.style.display = 'none';
+    loginScreen.style.display = 'flex';
+    $('#in-pass').value = '';
+    $('#in-pass').focus();
+  }
+
+  function showDashboard() {
+    loginScreen.style.display = 'none';
+    dashboard.style.display = 'block';
+    renderAll(0);
+  }
+
+  /* ---------- Filtro de período + orquestração ---------- */
+  function fmtDate(d) {
+    return String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0') + '/' + d.getFullYear();
+  }
+
+  function renderAll(days) {
+    const now = new Date();
+    const withDate = ALL.filter(r => r.data);
+    const rows = days > 0 ? withDate.filter(r => (now - r.data) / 86400000 <= days) : withDate;
+
+    const oldest = rows.length ? rows[rows.length - 1].data : now;
+    const newest = rows.length ? rows[0].data : now;
+    $('#period-label').textContent = rows.length + ' resposta' + (rows.length === 1 ? '' : 's') +
+      (rows.length ? ' · ' + fmtDate(oldest) + ' a ' + fmtDate(newest) : '');
+
+    // Cada seção é independente: se uma falhar (CDN do gráfico bloqueado, por exemplo), o
+    // resto do painel continua funcionando.
+    safeRender(renderKPIs, rows);
+    safeRender(renderTrend, rows);
+    safeRender(renderCategoryBreakdown, rows);
+    safeRender(renderPrizes, rows);
+    safeRender(renderStatus, rows);
+    safeRender(renderTable, rows);
+  }
+
+  function safeRender(fn, rows) {
+    try {
+      fn(rows);
+    } catch (e) {
+      console.error('Falha ao renderizar ' + fn.name + ':', e);
+    }
+  }
+
+  /* ---------- Seções ---------- */
+  function renderKPIs(rows) {
+    const total = rows.length;
+    const media = total ? rows.reduce((a, r) => a + r.media, 0) / total : 0;
+    const resgatados = rows.filter(r => r.status === 'Concluído').length;
+    const comComentario = rows.filter(r => r.comentario.trim().length > 0).length;
+    $('#kpi-total').textContent = total;
+    $('#kpi-media').innerHTML = media.toFixed(2) + ' <span class="unit">/ 5</span>';
+    $('#kpi-resgate').innerHTML = (total ? Math.round(resgatados / total * 100) : 0) + ' <span class="unit">%</span>';
+    $('#kpi-comentarios').innerHTML = (total ? Math.round(comComentario / total * 100) : 0) + ' <span class="unit">%</span>';
+  }
+
+  function weekKey(d) {
+    const onejan = new Date(d.getFullYear(), 0, 1);
+    const week = Math.ceil((((d - onejan) / 86400000) + onejan.getDay() + 1) / 7);
+    return d.getFullYear() + '-S' + String(week).padStart(2, '0');
+  }
+
+  function renderTrend(rows) {
+    const byWeek = {};
+    rows.slice().sort((a, b) => a.data - b.data).forEach(r => {
+      const k = weekKey(r.data);
+      if (!byWeek[k]) byWeek[k] = [];
+      byWeek[k].push(r.media);
+    });
+    const labels = Object.keys(byWeek);
+    const values = labels.map(k => byWeek[k].reduce((a, b) => a + b, 0) / byWeek[k].length);
+
+    const ctx = $('#chart-trend').getContext('2d');
+    if (trendChart) trendChart.destroy();
+    trendChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [{
+          data: values.map(v => Math.round(v * 100) / 100),
+          borderColor: '#000000',
+          backgroundColor: 'rgba(255,209,0,0.25)',
+          borderWidth: 2,
+          pointRadius: 2,
+          pointBackgroundColor: '#000',
+          tension: 0.3,
+          fill: true
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          y: { min: 1, max: 5, ticks: { stepSize: 1, font: { size: 11 } }, grid: { color: '#F0F0F0' } },
+          x: { ticks: { font: { size: 10 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 6 }, grid: { display: false } }
+        }
+      }
+    });
+  }
+
+  function renderCategoryBreakdown(rows) {
+    const total = rows.length || 1;
+    const html = CATS.map(c => {
+      const avg = rows.reduce((a, r) => a + r.notas[c.idx], 0) / total;
+      const pct = (avg / 5 * 100).toFixed(0);
+      return '<div class="breakdown-row">' +
+        '<div class="breakdown-label">' + c.label + '</div>' +
+        '<div class="breakdown-bar-bg"><div class="breakdown-bar-fill" style="width:' + pct + '%"></div></div>' +
+        '<div class="breakdown-value">' + avg.toFixed(2) + '</div>' +
+      '</div>';
+    }).join('');
+    $('#breakdown-cats').innerHTML = html;
+  }
+
+  function renderPrizes(rows) {
+    const counts = {};
+    rows.forEach(r => { counts[r.premio] = (counts[r.premio] || 0) + 1; });
+    const labels = Object.keys(counts);
+    const values = labels.map(l => counts[l]);
+
+    const ctx = $('#chart-prizes').getContext('2d');
+    if (prizeChart) prizeChart.destroy();
+    prizeChart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: labels,
+        datasets: [{
+          data: values,
+          backgroundColor: labels.map((_, i) => PRIZE_COLORS[i % PRIZE_COLORS.length]),
+          borderRadius: 6,
+          maxBarThickness: 40
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          y: { beginAtZero: true, ticks: { font: { size: 11 }, precision: 0 }, grid: { color: '#F0F0F0' } },
+          x: { ticks: { font: { size: 10.5 } }, grid: { display: false } }
+        }
+      }
+    });
+  }
+
+  function renderStatus(rows) {
+    const statuses = ['Pendente', 'Concluído', 'Vencido'];
+    const total = rows.length || 1;
+    const html = statuses.map(s => {
+      const count = rows.filter(r => r.status === s).length;
+      const pct = (count / total * 100).toFixed(0);
+      return '<div class="breakdown-row">' +
+        '<div class="breakdown-label">' + s + '</div>' +
+        '<div class="breakdown-bar-bg"><div class="breakdown-bar-fill" style="width:' + pct + '%"></div></div>' +
+        '<div class="breakdown-value">' + count + '</div>' +
+      '</div>';
+    }).join('');
+    $('#breakdown-status').innerHTML = html;
+  }
+
+  function pillClass(status) {
+    if (status === 'Pendente') return 'pill-pendente';
+    if (status === 'Concluído') return 'pill-concluido';
+    return 'pill-vencido';
+  }
+
+  function renderTable(rows) {
+    const top = rows.slice(0, 20);
+    if (!top.length) {
+      $('#table-body').innerHTML = '';
+      $('#table-body').closest('table').style.display = 'none';
+      return;
+    }
+    $('#table-body').closest('table').style.display = '';
+    const html = top.map(r => {
+      const d = r.data;
+      const dataStr = d ? fmtDate(d) + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0') : '—';
+      // Escapar o comentário real primeiro; o traço de "sem comentário" é HTML de propósito,
+      // não deve ser escapado de novo por cima (isso imprimiria a tag em vez de renderizá-la).
+      const comentarioHtml = r.comentario ? escapeHtml(r.comentario) : '<span class="comment-empty">—</span>';
+      return '<tr>' +
+        '<td>' + escapeHtml(dataStr) + '</td>' +
+        '<td class="name-cell">' + escapeHtml(r.nome) + '</td>' +
+        '<td class="stars">' + r.notas.join(' · ') + ' (méd. ' + r.media.toFixed(1) + ')</td>' +
+        '<td class="comment-cell">' + comentarioHtml + '</td>' +
+        '<td>' + escapeHtml(r.premio) + '</td>' +
+        '<td><span class="pill ' + pillClass(r.status) + '">' + escapeHtml(r.status) + '</span></td>' +
+      '</tr>';
+    }).join('');
+    $('#table-body').innerHTML = html;
+  }
+
+  function escapeHtml(s) {
+    const d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  /* ---------- Wiring ---------- */
+  buildLoginLogo($('#login-logo'));
+  buildTopbarLogo($('#topbar-logo'));
+  $('#login-title').textContent = CONFIG.ADMIN_TITLE;
+  $('#dash-title').textContent = CONFIG.ADMIN_TITLE;
+  $('#login-subtitle').textContent = CONFIG.RESTAURANT_NAME + ' · resultados da pesquisa de satisfação';
+  document.title = CONFIG.ADMIN_TITLE + ' — ' + CONFIG.RESTAURANT_NAME;
+
+  $('#btn-login').addEventListener('click', tryLogin);
+  $('#in-pass').addEventListener('keydown', e => { if (e.key === 'Enter') tryLogin(); });
+  $('#btn-logout').addEventListener('click', logout);
+  document.querySelectorAll('.filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      renderAll(parseInt(btn.dataset.days, 10));
+    });
+  });
+
+  /* =======================================================================
+   * Chamada inicial — SEMPRE por último no arquivo, depois de toda
+   * declaração de const/let e de toda function. Ela é quem de fato aciona
+   * renderAll()/renderTrend() (via showDashboard()), então precisa vir
+   * depois de "let trendChart, prizeChart" e "let ALL" lá em cima terem
+   * sido executadas nesta rodada do script.
+   * ===================================================================== */
+  (async function tryAutoLogin() {
+    let saved;
+    try { saved = sessionStorage.getItem(SESSION_KEY); } catch (e) { saved = null; }
+    if (!saved) return;
+    const r = await fetchAdminData(saved);
+    if (r && r.ok === true && Array.isArray(r.rows)) {
+      ALL = r.rows.map(parseRow).sort((a, b) => (b.data || 0) - (a.data || 0));
+      showDashboard();
+    } else {
+      try { sessionStorage.removeItem(SESSION_KEY); } catch (e2) { /* ignora */ }
+    }
+  })();
+})();
+</script>
+</body>
+</html>
