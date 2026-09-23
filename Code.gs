@@ -41,9 +41,12 @@ function doPost(e) {
     return json_({ ok: false, error: 'Requisição inválida' });
   }
 
+  // `transient: true` marca falhas passageiras (lock ocupado, instabilidade dos serviços do
+  // Google): o front-end repete sozinho essas, e só essas — erros de negócio não têm a marca.
   var lock = LockService.getScriptLock();
   if (!lock.tryLock(20000)) {
-    return json_({ ok: false, error: 'Servidor ocupado. Tente novamente.' });
+    console.warn('doPost ' + (body && body.action) + ': lock ocupado');
+    return json_({ ok: false, transient: true, error: 'Servidor ocupado. Tente novamente.' });
   }
 
   try {
@@ -57,7 +60,9 @@ function doPost(e) {
       default: return json_({ ok: false, error: 'Ação inválida' });
     }
   } catch (err) {
-    return json_({ ok: false, error: 'Erro interno. Tente novamente.' });
+    // Aparece em Execuções no editor do Apps Script — sem isso a causa real se perde.
+    console.error('doPost ' + (body && body.action) + ': ' + (err && err.stack ? err.stack : err));
+    return json_({ ok: false, transient: true, error: 'Erro interno. Tente novamente.' });
   } finally {
     lock.releaseLock();
   }

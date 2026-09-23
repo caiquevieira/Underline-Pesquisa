@@ -443,15 +443,20 @@
     }
   }
 
-  // Resposta sem o campo `ok` (ou falha de rede) é tratada como falha transitória:
-  // uma nova tentativa após API_RETRY_DELAY_MS, e só então o erro chega ao usuário.
+  // Falha transitória = sem resposta JSON com `ok` (rede, redirect do Apps Script) OU
+  // `transient: true` do backend (lock ocupado, erro interno do Google): repetida até 3 vezes,
+  // com espera crescente. Erros de negócio voltam na hora.
   async function api(payload) {
-    for (let attempt = 0; attempt < 2; attempt++) {
-      if (attempt > 0) await new Promise(r => setTimeout(r, CONFIG.API_RETRY_DELAY_MS));
+    let last = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      if (attempt > 0) await new Promise(r => setTimeout(r, CONFIG.API_RETRY_DELAY_MS * attempt));
       const r = await apiOnce(payload);
-      if (r && typeof r.ok === 'boolean') return r;
+      if (r && typeof r.ok === 'boolean') {
+        if (!r.transient) return r;
+        last = r;
+      }
     }
-    return { ok: false, network: true, error: 'Não foi possível se comunicar com o servidor. Verifique sua internet e tente novamente.' };
+    return last || { ok: false, network: true, error: 'Não foi possível se comunicar com o servidor. Verifique sua internet e tente novamente.' };
   }
 
   /* ---------- Marca ---------- */

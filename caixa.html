@@ -312,13 +312,19 @@
       clearTimeout(timer);
     }
   }
+  // Repete até 3 vezes (espera crescente) falhas transitórias: sem JSON com `ok`, ou
+  // `transient: true` do backend. Erros de negócio voltam na hora.
   async function api(payload) {
-    for (let attempt = 0; attempt < 2; attempt++) {
-      if (attempt > 0) await new Promise(r => setTimeout(r, CONFIG.API_RETRY_DELAY_MS));
+    let last = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      if (attempt > 0) await new Promise(r => setTimeout(r, CONFIG.API_RETRY_DELAY_MS * attempt));
       const r = await apiOnce(payload);
-      if (r && typeof r.ok === 'boolean') return r;
+      if (r && typeof r.ok === 'boolean') {
+        if (!r.transient) return r;
+        last = r;
+      }
     }
-    return { ok: false, network: true, error: 'Não foi possível se comunicar com o servidor. Verifique a internet e tente novamente.' };
+    return last || { ok: false, network: true, error: 'Não foi possível se comunicar com o servidor. Verifique a internet e tente novamente.' };
   }
 
   // Senha trocada no Code.gs (ou adulterada no aparelho): volta para o login.
@@ -451,7 +457,7 @@
     // falha de rede): o backend usa isso para não tratar a repetição como uso duplicado.
     if (!state.requestId) state.requestId = newRequestId();
     const r = await api({ action: 'validate', cupom: c.cupom, senha: state.senha, requestId: state.requestId });
-    if (!r.network) state.requestId = '';
+    if (!r.network && !r.transient) state.requestId = ''; // falha passageira: repetir com o mesmo requestId
     if (r.ok) {
       c.status = 'Concluído';
       renderCoupon();

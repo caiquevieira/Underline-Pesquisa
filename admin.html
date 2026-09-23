@@ -536,28 +536,39 @@
   // script.googleusercontent.com falha de forma transitória de vez em quando — confirmado
   // testando contra produção — daí o retry em apiCall abaixo, mesmo padrão do api() do index.html).
   async function apiCallOnce(payload) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 30000);
     try {
       const res = await fetch(CONFIG.WEBHOOK_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // evita preflight CORS
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
+        signal: ctrl.signal
       });
       return await res.json();
     } catch (e) {
       return null;
+    } finally {
+      clearTimeout(timer);
     }
   }
 
-  // Resposta sem o campo `ok` (ou falha de rede) é tratada como falha transitória: uma nova
-  // tentativa após CONFIG.API_RETRY_DELAY_MS, e só então o erro chega à tela. Erros de negócio
-  // (ok:false com uma mensagem real, ex. "Senha incorreta") não são repetidos.
+  // Falha transitória = sem resposta JSON com `ok` (rede, redirect do Apps Script) OU
+  // `transient: true` vindo do backend (lock ocupado, erro interno do Google). Essas são
+  // repetidas até API_MAX_ATTEMPTS vezes, com espera crescente; erros de negócio (ok:false
+  // sem `transient`, ex. "Senha incorreta") voltam na hora.
+  const API_MAX_ATTEMPTS = 3;
   async function apiCall(payload) {
-    for (let attempt = 0; attempt < 2; attempt++) {
-      if (attempt > 0) await new Promise(r => setTimeout(r, CONFIG.API_RETRY_DELAY_MS));
+    let last = null;
+    for (let attempt = 0; attempt < API_MAX_ATTEMPTS; attempt++) {
+      if (attempt > 0) await new Promise(r => setTimeout(r, CONFIG.API_RETRY_DELAY_MS * attempt));
       const r = await apiCallOnce(payload);
-      if (r && typeof r.ok === 'boolean') return r;
+      if (r && typeof r.ok === 'boolean') {
+        if (!r.transient) return r;
+        last = r;
+      }
     }
-    return { ok: false, network: true, error: 'Não foi possível conectar ao servidor. Verifique sua internet.' };
+    return last || { ok: false, network: true, error: 'Não foi possível conectar ao servidor. Verifique sua internet.' };
   }
 
   function fetchAdminData(senha) {
