@@ -1,9 +1,9 @@
 /**
  * Pesquisa de Satisfação + Roleta da Sorte — Underline
- * Configuração compartilhada — carregada tanto por index.html quanto por admin.html
+ * Configuração compartilhada — carregada por index.html, caixa.html e admin.html
  * (<script src="config.js">, antes do <script> de cada página). Todo dado específico de
  * cliente (nome do restaurante, logo, webhook, prêmios, coordenadas...) vive só aqui, para
- * as duas páginas nunca ficarem dessincronizadas ao reaplicar o template em outro cliente.
+ * as páginas nunca ficarem dessincronizadas ao reaplicar o template em outro cliente.
  *
  * Não é um build step: é um segundo arquivo estático, sem bundler, sem transpilação.
  *
@@ -33,8 +33,6 @@ const CONFIG = {
   // Validade do cupom. Manter igual à constante COUPON_VALIDITY_DAYS do Code.gs
   // (a regra que vale é a do backend). Placeholders: {dias} e {data} (dd/mm/aaaa).
   COUPON_VALIDITY_DAYS: 30,
-  COUPON_VALIDITY_NOTICE: 'Válido até {data}',
-  COUPON_EXPIRED_NOTICE: 'Cupom expirado em {data}',
   COUPON_POLICY_TEXT: 'Válido para sua próxima visita. Não cumulativo com outras promoções ou descontos. Válido por {dias} dias a partir da data de emissão.',
 
   CONSENT_TEXT: 'Ao continuar, você concorda com o uso do seu nome e WhatsApp pelo estabelecimento para fins desta pesquisa e do resgate do prêmio.',

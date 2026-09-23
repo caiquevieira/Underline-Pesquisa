@@ -12,19 +12,20 @@ Template reutilizável (multi-cliente) de pesquisa de satisfação com prêmio g
 - **Identidade visual (fixa, não é livre):** fundo da página cinza bem claro `#F7F7F7`, elementos e texto em preto absoluto `#000000`, cards de conteúdo em branco `#FFFFFF` com borda `1px solid #E0E0E0` e sombra leve (`0 2px 8px rgba(0,0,0,.06)`) para dar profundidade sutil. O amarelo/ouro `#FFD100` permanece como cor de acento (texto dos botões pretos, detalhes da roleta). Tipografia bold, geométrica, sem serifa. Botões grandes tipo pílula (border-radius total), pretos com texto amarelo/branco, feedback tátil no `:active` (scale down leve). Sem emojis na interface. Tom de voz direto, sem gírias — público de ticket médio-alto.
 - **Logo do cliente:** slot de imagem configurável (`CONFIG.LOGO_DATA_URI` ou `CONFIG.LOGO_URL`) no topo da página. Enquanto vazio, mostra um placeholder "Seu logo aqui" em caixa de borda pontilhada preta, no estilo visual do cupom — nunca o nome do restaurante em texto.
 - **Rodapé fixo (sempre visível, sem toggle):** em todas as telas, "Desenvolvido por Underline" + o logo da Underline (`Assets/underline-logo.jpeg`, ~24px de altura), os dois dentro de um único link para `https://underlinelab.com.br` (`target="_blank" rel="noopener"`). Não é configurável por cliente.
-- **Configuração compartilhada em `config.js`:** todo dado específico de cliente (nome do restaurante, logo, webhook, prêmios, coordenadas, textos...) vive em um único objeto `CONFIG`, em `config.js` — uma fonte só, carregada tanto por `index.html` quanto por `admin.html` (`<script src="config.js"></script>`, sempre antes do `<script>` de cada página). Reaplicar o template em outro cliente é trocar esse arquivo, sem tocar no resto. Não é um build step: é só um segundo arquivo estático.
+- **Configuração compartilhada em `config.js`:** todo dado específico de cliente (nome do restaurante, logo, webhook, prêmios, coordenadas, textos...) vive em um único objeto `CONFIG`, em `config.js` — uma fonte só, carregada por `index.html`, `caixa.html` e `admin.html` (`<script src="config.js"></script>`, sempre antes do `<script>` de cada página). Reaplicar o template em outro cliente é trocar esse arquivo, sem tocar no resto. Não é um build step: é só um segundo arquivo estático.
   - **Cuidado ao editar:** como `config.js` roda num `<script>` separado (não um módulo ES), seu `const CONFIG` só fica visível para o `<script>` inline de cada página porque os dois compartilham o mesmo escopo léxico de topo do documento — a tag `<script src="config.js">` precisa continuar vindo *antes* da tag `<script>` inline em ambas as páginas.
 
 ## Estrutura de arquivos
 
 ```
-index.html   → fluxo completo do cliente (participação na pesquisa + roleta)
+index.html   → fluxo completo do cliente (participação na pesquisa + roleta + cupom)
+caixa.html   → validação de cupom pelo garçom/caixa, no aparelho do estabelecimento — ver "Validação do cupom"
 admin.html   → painel administrativo (dashboards) — ver seção própria abaixo
-config.js    → CONFIG compartilhado pelas duas páginas acima
-Code.gs      → backend Apps Script (registro, validação de cupom, dados do admin)
+config.js    → CONFIG compartilhado pelas três páginas acima
+Code.gs      → backend Apps Script (registro, consulta/validação de cupom, dados do admin)
 ```
 
-Não existe página separada de caixa — decisão explícita: usar senha simples embutida na própria tela do cupom em `index.html` (ver seção "Validação do cupom"), aceitando a limitação de segurança conhecida (senha visível no código-fonte do navegador) como trade-off aceitável nesta fase. `admin.html` é diferente: tem sua própria senha (`ADMIN_PASSWORD`), validada só no backend — ver "Painel administrativo".
+A validação do cupom **não** fica mais na tela do cupom do cliente: o cliente só mostra ou informa o código, e o garçom/caixa valida em `caixa.html`, no aparelho dele (decisão que substituiu a antiga "senha embutida na tela do cupom"). `caixa.html` usa a senha do caixa (`CASHIER_PASSWORD`), `admin.html` usa a sua própria (`ADMIN_PASSWORD`) — as duas validadas só no backend.
 
 ## Painel administrativo (`admin.html`)
 
@@ -94,7 +95,7 @@ Paleta pastel fixa (`PRIZE_COLORS`): azul `#90CAF9`, roxo `#B39DDB`, verde menta
    - Ao tocar uma estrela, avança automaticamente para a próxima pergunta (~400ms de delay) sem precisar de botão "Próxima".
 4. **Feedback aberto (opcional)** — textarea curta: "O que achou que podíamos ter feito diferente hoje?". Botões "Continuar" e "Pular" ambos avançam (pular grava comentário vazio).
 5. **Roleta da sorte** — roda desenhada via SVG gerada dinamicamente a partir de `CONFIG.PRIZES` (não hardcoded — precisa funcionar com qualquer número de fatias). Botão "Girar a roleta". Animação de giro suave (~4-5s, easing ease-out, múltiplas voltas + parada no prêmio sorteado). Depois de girar, o botão fica desabilitado (não pode girar duas vezes na mesma sessão).
-6. **Resultado / Cupom** — mostra nome do prêmio, código do cupom em destaque, botão "Copiar código" (Clipboard API). Um link discreto (texto pequeno, tipo "Já é cliente do estabelecimento?" ou similar, não um botão chamativo) revela um campo de senha inline nesta mesma tela — ver "Validação do cupom".
+6. **Resultado / Cupom** — mostra nome do prêmio, código do cupom em destaque, e dentro do cupom a **data e hora de emissão** ("Gerado em dd/mm/aaaa às hh:mm", hora do aparelho no momento do sorteio, guardada como `emitidoEm` no `localStorage`) e a **data de validade** ("Válido até dd/mm/aaaa", ou "Expirou em" se já passou). Botão "Copiar código" (Clipboard API) e a instrução para mostrar/informar o código ao garçom ou no caixa. **Sem nenhum campo de senha/validação nesta tela** — ver "Validação do cupom". Cupons salvos antes do `emitidoEm` existir mostram só a data.
 
 ## Prêmios da roleta (calibrados para ticket médio-alto)
 
@@ -127,7 +128,7 @@ Nunca incluir uma fatia "sem prêmio" — a promessa da tela de boas-vindas é p
 
 - `CONFIG.DAILY_LIMIT_ENABLED` (desliga em testes) e `CONFIG.DAILY_LIMIT_MESSAGE` ("Você já participou hoje. Volte amanhã!").
 - Após um spin bem-sucedido (prêmio registrado no webhook), o `localStorage` guarda a data local do aparelho (`YYYY-MM-DD`) e o último cupom.
-- No clique em "Começar agora", **antes** da geolocalização: se a data guardada for hoje, mostra a mensagem e bloqueia a pesquisa. A tela de bloqueio oferece "Ver meu cupom" (último cupom, com validade e campo do estabelecimento).
+- No clique em "Começar agora", **antes** da geolocalização: se a data guardada for hoje, mostra a mensagem e bloqueia a pesquisa. A tela de bloqueio oferece "Ver meu cupom" (último cupom, com emissão e validade).
 - Limitação: limpar dados do navegador ou usar aba anônima contorna o limite; é barreira contra uso casual, não antifraude. Só o último cupom fica guardado no aparelho.
 
 ## Validade e políticas do cupom
@@ -155,7 +156,7 @@ A função `marcarCuponsVencidos()` do `Code.gs` varre a planilha e muda `Penden
 7. Para o webhook usar o `Code.gs` novo: **Implantar → Gerenciar implantações → lápis (Editar) → Versão: Nova versão → Implantar** (mesma implantação, a URL não muda). O gatilho roda o código salvo (Head) e não depende disso.
 
 Os nomes dos menus podem variar levemente conforme o idioma e a versão do editor do Apps Script.
-- A tela do cupom mostra "Válido até dd/mm/aaaa" e um texto de políticas discreto (`CONFIG.COUPON_POLICY_TEXT`, com `{dias}`): "Válido para sua próxima visita. Não cumulativo com outras promoções ou descontos. Válido por 30 dias a partir da data de emissão."
+- A tela do cupom mostra "Gerado em dd/mm/aaaa às hh:mm", "Válido até dd/mm/aaaa" e um texto de políticas discreto (`CONFIG.COUPON_POLICY_TEXT`, com `{dias}`): "Válido para sua próxima visita. Não cumulativo com outras promoções ou descontos. Válido por 30 dias a partir da data de emissão."
 
 ## Geolocalização — restringir participação à proximidade do restaurante
 
@@ -171,15 +172,17 @@ Requisito novo: só permitir gerar cupom se o dispositivo estiver fisicamente pe
 - **Pré-requisito técnico:** Geolocation API só funciona em contexto seguro (HTTPS). Garantir que o link do QR Code/NFC aponte para uma URL HTTPS.
 - **Ressalva honesta para registrar:** essa checagem roda no navegador do cliente e pode ser burlada por quem usa apps de GPS falso — é uma barreira razoável contra uso casual fora do local (alguém compartilhando o link pela internet), não uma trava de segurança forte. Não vender isso como antifraude definitivo.
 
-## Validação do cupom (senha simples, decisão atual)
+## Validação do cupom (`caixa.html`, no aparelho do garçom/caixa)
 
-- `CONFIG` do front-end recebe `CASHIER_PASSWORD` (senha fixa e simples, ex. `1234` — trocar por cliente).
-- Na tela de Resultado, um link discreto revela um campo de senha. Ao digitar a senha correta:
-  1. Front-end faz `fetch POST` para o webhook com `{ action: "validate", cupom: "<código>", senha: "<digitada>" }`.
-  2. **Validação real da senha acontece no `Code.gs`** (comparar contra constante `CASHIER_PASSWORD` no backend), não no JS do front-end — mesmo sendo a "opção simples", não expor a senha certa em texto plano no HTML entregue ao navegador. O front-end só sabe se acertou ou errou pela resposta do backend.
-  3. Se a senha bate **e** o cupom está com `Status Uso = "Pendente"` → backend atualiza para `"Concluído"` e retorna sucesso.
-  4. Se o cupom já está `"Concluído"` → backend retorna erro específico: **"Cupom já utilizado"** (não genérico). O front-end deve exibir essa mensagem de forma clara para o garçom pedir ao cliente para refazer a pesquisa.
-  5. Se o cupom não existe na planilha → erro "Cupom não encontrado".
+O cliente só mostra ou informa o código; quem valida é o estabelecimento, numa página própria (`caixa.html`), no celular/tablet do garçom ou no computador do caixa. Mesma identidade visual, logo do cliente e rodapé Underline do `index.html`; sem geolocalização; `noindex`.
+
+- **Senha:** `CASHIER_PASSWORD`, constante **só no `Code.gs`** (nunca no `config.js`/HTML) — o front-end só sabe se acertou pela resposta do backend. Login via `action: "cashierLogin"`. A senha fica salva no `localStorage` do aparelho (chave `CONFIG.STORAGE_KEY + "-caixa"`) até tocar em "Sair", para o garçom não redigitar a cada cupom — mas nunca vale sozinha: toda consulta e todo resgate a reenviam e o backend confere de novo. Se o backend responder "Senha incorreta" (senha trocada no `Code.gs`), a página limpa a senha salva e volta ao login.
+- **Fluxo em dois passos, para não dar baixa num código digitado errado:**
+  1. O garçom digita os 4 caracteres (o prefixo `CONFIG.COUPON_PREFIX` já aparece fixo; colar o código inteiro, com ou sem hífen/minúsculas, também funciona) e toca "Consultar cupom" → `action: "lookup"`, que **não altera nada** e devolve prêmio, nome, data/hora de emissão, validade e status.
+  2. Se o status for `Pendente` (dentro do prazo), aparece "Confirmar resgate" → `action: "validate"` (com `requestId`, ver idempotência), que marca `"Concluído"`. `Concluído` ("Cupom já utilizado") e `Vencido` ("Cupom expirado") são mostrados com mensagem clara e sem botão de resgate.
+- Se o status mudar entre a consulta e a confirmação (ex.: resgatado em outro aparelho), o erro do `validate` atualiza a tela para o status real.
+
+**Link da página:** é só abrir `caixa.html` no mesmo host do `index.html` (ex. `https://.../caixa.html`). Não é linkado a partir das telas do cliente.
 
 ## Planilha Google Sheets — colunas (ordem exata, não alterar)
 
@@ -201,13 +204,15 @@ Requisito novo: só permitir gerar cupom se o dispositivo estiver fisicamente pe
 `doPost(e)` recebe JSON com campo `action`:
 
 - **`action: "register"`** — insere uma nova linha com `Status Uso = "Pendente"`. Retorna `{ ok: true }`.
+- **`action: "cashierLogin"`** — recebe `senha`; `{ ok: true }` se bater com `CASHIER_PASSWORD`, senão `{ ok: false, error: "Senha incorreta" }`. Não lê a planilha.
+- **`action: "lookup"`** — recebe `cupom` e `senha`. Consulta **sem alterar nada**. Senha conferida primeiro ("Senha incorreta"), depois "Cupom não encontrado", senão `{ ok: true, cupom, premio, nome, emitido (ISO), validoAte ("yyyy-MM-dd" no fuso TIMEZONE), status }` — `status` já resolvido: `Pendente` além do prazo volta como `"Vencido"`, pela mesma regra do `isExpired_` (`validoAte` vem de `lastValidDay_`, o complemento exato dela). Nunca devolve WhatsApp.
 - **`action: "validate"`** — recebe `cupom`, `senha` e `requestId` (opcional, ver abaixo). Compara senha contra `CASHIER_PASSWORD` (constante no topo do `Code.gs`). Busca o cupom na planilha:
   - senha errada → `{ ok: false, error: "Senha incorreta" }` (checada primeiro)
   - não encontrado → `{ ok: false, error: "Cupom não encontrado" }`
   - já `"Concluído"` → `{ ok: false, error: "Cupom já utilizado" }`
   - `"Vencido"` ou `Pendente` além do prazo → `{ ok: false, error: "Cupom expirado" }`
   - válido e pendente → atualiza status, retorna `{ ok: true, premio, nome }`
-  - **Idempotência:** o front-end gera um `requestId` por clique em "Validar cupom" e o reenvia igual nas repetições (retry de `api()`, ou novo clique após falha de rede). Um `validate` bem-sucedido fica guardado 10 min no `CacheService` sob esse `requestId`; se chegar de novo (mesmo `requestId` e mesmo cupom), devolve o mesmo sucesso em vez de "Cupom já utilizado". Só sucessos são guardados, e a senha continua sendo conferida antes. Um cupom realmente já usado (outro `requestId`) segue dando "Cupom já utilizado".
+  - **Idempotência:** `caixa.html` gera um `requestId` por toque em "Confirmar resgate" e o reenvia igual nas repetições (retry de `api()`, ou novo clique após falha de rede). Um `validate` bem-sucedido fica guardado 10 min no `CacheService` sob esse `requestId`; se chegar de novo (mesmo `requestId` e mesmo cupom), devolve o mesmo sucesso em vez de "Cupom já utilizado". Só sucessos são guardados, e a senha continua sendo conferida antes. Um cupom realmente já usado (outro `requestId`) segue dando "Cupom já utilizado".
 
 O front-end (`api()`) repete uma vez, após `CONFIG.API_RETRY_DELAY_MS` (1 s), qualquer resposta sem o campo `ok` ou falha de rede/timeout; erros de negócio (`ok:false`) não são repetidos. O `register` é idempotente no backend (mesmo cupom + nome + WhatsApp devolve `ok:true`).
 

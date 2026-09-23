@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#F7F7F7">
+<meta name="robots" content="noindex">
+<title>Validação de cupons</title>
+<style>
+  :root {
+    --gold: #FFD100;
+    --black: #000000;
+    --white: #FFFFFF;
+    --bg: #F7F7F7;
+    --card-border: #E0E0E0;
+    --card-shadow: 0 2px 8px rgba(0, 0, 0, .06);
+    --font: "Avenir Next", "Montserrat", "Segoe UI", "Helvetica Neue", Arial, system-ui, sans-serif;
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    min-height: 100dvh;
+    background: var(--bg);
+    color: var(--black);
+    font-family: var(--font);
+    font-weight: 700;
+    line-height: 1.35;
+    overflow-x: hidden;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .app {
+    width: 100%;
+    max-width: 440px;
+    min-height: 100vh;
+    min-height: 100dvh;
+    margin: 0 auto;
+    padding: max(16px, env(safe-area-inset-top)) 16px calc(56px + env(safe-area-inset-bottom));
+    display: flex;
+    flex-direction: column;
+  }
+  .brand {
+    text-align: center;
+    padding: 6px 0 14px;
+    min-height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .brand img { max-height: 48px; max-width: 70%; object-fit: contain; }
+  .brand .logo-placeholder {
+    display: inline-flex; align-items: center; justify-content: center;
+    border: 2px dashed var(--black); border-radius: 14px;
+    padding: 10px 22px; opacity: .55;
+    font-weight: 800; font-size: .72rem; letter-spacing: .1em; text-transform: uppercase;
+  }
+  main { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+
+  .screen { display: none; }
+  .screen.active { display: block; animation: enter .35s ease both; }
+  @keyframes enter {
+    from { opacity: 0; transform: translateY(14px); }
+    to   { opacity: 1; transform: none; }
+  }
+
+  .card {
+    background: var(--white);
+    border: 1px solid var(--card-border);
+    border-radius: 28px;
+    padding: 24px 20px;
+    box-shadow: var(--card-shadow);
+  }
+  h2 { margin: 0 0 10px; font-weight: 900; letter-spacing: -.02em; line-height: 1.1; outline: none; font-size: 1.55rem; }
+  p { margin: 0 0 16px; font-weight: 600; }
+  .eyebrow {
+    font-size: .75rem; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; margin-bottom: 8px;
+  }
+  .muted { font-size: .85rem; font-weight: 600; opacity: .75; }
+
+  .btn {
+    display: block; width: 100%; min-height: 58px; padding: 14px 24px;
+    border: 2px solid var(--black); border-radius: 999px;
+    background: var(--black); color: var(--gold);
+    font: inherit; font-weight: 900; font-size: 1.05rem; letter-spacing: .02em;
+    cursor: pointer; transition: transform .12s ease, opacity .2s ease;
+  }
+  .btn:active:not(:disabled) { transform: scale(.96); }
+  .btn:disabled { opacity: .3; cursor: not-allowed; }
+  .btn.ghost { background: var(--white); color: var(--black); }
+  .btn + .btn { margin-top: 12px; }
+
+  .link {
+    background: none; border: 0; padding: 6px 0; font: inherit; font-size: .8rem; font-weight: 600;
+    color: var(--black); text-decoration: underline; cursor: pointer; opacity: .7;
+  }
+
+  label { display: block; font-size: .8rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; margin-bottom: 6px; }
+  .field { margin-bottom: 18px; }
+  input {
+    width: 100%; padding: 14px 18px; border: 2px solid var(--black); border-radius: 18px;
+    background: var(--white); color: var(--black); font: inherit; font-size: 16px; font-weight: 700;
+    outline: none; -webkit-appearance: none; appearance: none;
+  }
+  input:focus { box-shadow: 0 0 0 3px var(--gold), 0 0 0 5px var(--black); }
+  input::placeholder { color: rgba(0,0,0,.4); font-weight: 600; }
+
+  /* Campo do código: prefixo fixo + 4 caracteres grandes */
+  .code-input {
+    display: flex; align-items: center; gap: 8px;
+    border: 3px dashed var(--black); border-radius: 22px; padding: 10px 16px;
+  }
+  .code-input:focus-within { box-shadow: 0 0 0 3px var(--gold), 0 0 0 5px var(--black); }
+  .code-input span { font-size: clamp(1.6rem, 9vw, 2.2rem); font-weight: 900; letter-spacing: .08em; opacity: .45; }
+  .code-input input {
+    border: 0; padding: 4px 0; border-radius: 0; box-shadow: none !important; min-width: 0;
+    font-size: clamp(1.6rem, 9vw, 2.2rem); font-weight: 900; letter-spacing: .08em; text-transform: uppercase;
+  }
+
+  .msg {
+    margin: 0 0 14px; padding: 12px 16px; border-radius: 16px; background: var(--black); color: var(--white);
+    font-size: .9rem; font-weight: 700;
+  }
+  .msg.ok { background: var(--gold); color: var(--black); border: 2px solid var(--black); }
+
+  /* Detalhes do cupom consultado */
+  .status {
+    display: inline-block; padding: 6px 14px; border-radius: 999px; margin-bottom: 12px;
+    font-size: .72rem; font-weight: 900; letter-spacing: .12em; text-transform: uppercase;
+    border: 2px solid var(--black);
+  }
+  .status.pending { background: var(--gold); }
+  .status.done, .status.expired { background: var(--black); color: var(--white); }
+  .code-big { font-size: clamp(2rem, 11vw, 2.6rem); font-weight: 900; letter-spacing: .08em; margin: 0 0 4px; }
+  .prize-name { font-size: 1.4rem; margin-bottom: 14px; }
+  .details { margin: 0 0 18px; padding-top: 12px; border-top: 2px dashed rgba(0,0,0,.2); display: grid; gap: 8px; }
+  .details div { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+  .details dt { font-size: .66rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; opacity: .6; white-space: nowrap; }
+  .details dd { margin: 0; font-size: .95rem; font-weight: 900; text-align: right; min-width: 0; overflow-wrap: anywhere; }
+
+  .topline { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; }
+
+  .site-footer {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 5;
+    display: flex; justify-content: center;
+    padding: 10px max(16px, env(safe-area-inset-left)) max(10px, env(safe-area-inset-bottom));
+    background: rgba(247, 247, 247, .92);
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+    border-top: 1px solid var(--card-border);
+  }
+  .site-footer a {
+    display: inline-flex; align-items: center; gap: 8px;
+    color: var(--black); text-decoration: none;
+    font-size: .72rem; font-weight: 700; letter-spacing: .01em;
+  }
+  .site-footer img { height: 24px; width: 24px; object-fit: contain; border-radius: 6px; display: block; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .screen.active { animation: none; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="brand" id="brand"></header>
+
+  <main>
+    <!-- Login (senha do estabelecimento — conferida no backend) -->
+    <section class="screen" id="s-login">
+      <form class="card" id="form-login" novalidate>
+        <p class="eyebrow">Uso do estabelecimento</p>
+        <h2 tabindex="-1">Validação de cupons</h2>
+        <p class="muted">Entre com a senha do estabelecimento. Ela fica salva neste aparelho até você sair.</p>
+        <div class="field">
+          <label for="in-pass">Senha</label>
+          <input id="in-pass" type="password" autocomplete="current-password" placeholder="Senha do estabelecimento">
+        </div>
+        <div class="msg" id="login-msg" role="alert" hidden></div>
+        <button class="btn" id="btn-login" type="submit">Entrar</button>
+      </form>
+    </section>
+
+    <!-- Digitar o código -->
+    <section class="screen" id="s-lookup">
+      <form class="card" id="form-lookup" novalidate>
+        <div class="topline">
+          <p class="eyebrow" style="margin:0">Validação de cupons</p>
+          <button class="link" id="btn-logout" type="button">Sair</button>
+        </div>
+        <h2 tabindex="-1">Qual é o código?</h2>
+        <p class="muted">Digite o código que o cliente mostrou ou informou.</p>
+        <div class="field">
+          <label for="in-code">Código do cupom</label>
+          <div class="code-input">
+            <span id="code-prefix" aria-hidden="true"></span>
+            <input id="in-code" type="text" inputmode="text" autocomplete="off" autocapitalize="characters"
+                   autocorrect="off" spellcheck="false" maxlength="12" placeholder="XXXX">
+          </div>
+        </div>
+        <div class="msg" id="lookup-msg" role="alert" hidden></div>
+        <button class="btn" id="btn-lookup" type="submit" disabled>Consultar cupom</button>
+      </form>
+    </section>
+
+    <!-- Detalhes + confirmação -->
+    <section class="screen" id="s-coupon">
+      <div class="card">
+        <span class="status" id="c-status"></span>
+        <p class="code-big" id="c-code"></p>
+        <h2 class="prize-name" id="c-prize" tabindex="-1"></h2>
+        <dl class="details">
+          <div><dt>Cliente</dt><dd id="c-name"></dd></div>
+          <div><dt>Gerado em</dt><dd id="c-issued"></dd></div>
+          <div><dt>Válido até</dt><dd id="c-valid"></dd></div>
+        </dl>
+        <div class="msg" id="coupon-msg" role="alert" hidden></div>
+        <button class="btn" id="btn-confirm" type="button">Confirmar resgate</button>
+        <button class="btn ghost" id="btn-back" type="button">Validar outro cupom</button>
+      </div>
+    </section>
+  </main>
+</div>
+
+<footer class="site-footer">
+  <a href="https://underlinelab.com.br" target="_blank" rel="noopener">
+    <img src="Assets/underline-logo.jpeg" alt="" width="24" height="24">
+    <span>Desenvolvido por Underline</span>
+  </a>
+</footer>
+
+<noscript><p style="padding:24px;text-align:center">Ative o JavaScript para validar cupons.</p></noscript>
+
+<!-- CONFIG vem de config.js, compartilhado com index.html e admin.html. Precisa carregar ANTES do script abaixo. -->
+<script src="config.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  const $ = sel => document.querySelector(sel);
+  // A senha fica neste aparelho (é o celular/tablet do garçom ou o computador do caixa), mas
+  // nunca vale por si só: toda consulta e todo resgate a reenviam e o Code.gs confere de novo.
+  const PASS_KEY = CONFIG.STORAGE_KEY + '-caixa';
+  const CODE_LEN = 4;
+  const STATUS_VIEW = {
+    'Pendente':  { cls: 'pending', label: 'Válido' },
+    'Concluído': { cls: 'done',    label: 'Já utilizado' },
+    'Vencido':   { cls: 'expired', label: 'Expirado' }
+  };
+
+  const state = { senha: '', coupon: null, requestId: '' };
+
+  /* ---------- Utilidades ---------- */
+  function show(id) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.toggle('active', s.id === id));
+    window.scrollTo(0, 0);
+  }
+  function focusHeading(id) {
+    const h = $('#' + id + ' h2');
+    if (h) h.focus({ preventScroll: true });
+  }
+  function setMsg(el, text, ok) {
+    el.textContent = text || '';
+    el.classList.toggle('ok', !!ok);
+    el.hidden = !text;
+  }
+  function passGet() { try { return localStorage.getItem(PASS_KEY) || ''; } catch (e) { return ''; } }
+  function passSet(v) { try { v ? localStorage.setItem(PASS_KEY, v) : localStorage.removeItem(PASS_KEY); } catch (e) { /* ignora */ } }
+
+  const pad = n => String(n).padStart(2, '0');
+  const fmtBR = d => pad(d.getDate()) + '/' + pad(d.getMonth() + 1) + '/' + d.getFullYear();
+  function fmtDateTime(iso) {
+    const d = iso ? new Date(iso) : null;
+    if (!d || isNaN(d)) return '—';
+    return fmtBR(d) + ' às ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+  }
+  function fmtYmd(s) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s || '');
+    return m ? m[3] + '/' + m[2] + '/' + m[1] : '—';
+  }
+
+  function newRequestId() {
+    if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+    return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+  }
+
+  // Aceita "K7Q4", "k7q4", "UND-K7Q4" ou "und k7q4": devolve só os 4 caracteres do código.
+  function codePart(raw) {
+    let s = String(raw || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const prefix = CONFIG.COUPON_PREFIX.toUpperCase();
+    if (s.length > CODE_LEN && s.indexOf(prefix) === 0) s = s.slice(prefix.length);
+    return s.slice(0, CODE_LEN);
+  }
+
+  /* ---------- API (Apps Script) — mesmo padrão de retry do index.html ---------- */
+  async function apiOnce(payload) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 20000);
+    try {
+      const res = await fetch(CONFIG.WEBHOOK_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // evita preflight CORS
+        body: JSON.stringify(payload),
+        signal: ctrl.signal
+      });
+      return await res.json();
+    } catch (e) {
+      return null;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  async function api(payload) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      if (attempt > 0) await new Promise(r => setTimeout(r, CONFIG.API_RETRY_DELAY_MS));
+      const r = await apiOnce(payload);
+      if (r && typeof r.ok === 'boolean') return r;
+    }
+    return { ok: false, network: true, error: 'Não foi possível se comunicar com o servidor. Verifique a internet e tente novamente.' };
+  }
+
+  // Senha trocada no Code.gs (ou adulterada no aparelho): volta para o login.
+  function handleAuthError(r) {
+    if (r.error !== 'Senha incorreta') return false;
+    logout('A senha do estabelecimento mudou. Entre novamente.');
+    return true;
+  }
+
+  function busy(btn, label) {
+    btn.dataset.label = btn.dataset.label || btn.textContent;
+    btn.disabled = !!label;
+    btn.textContent = label || btn.dataset.label;
+  }
+
+  /* ---------- Marca ---------- */
+  function initBrand() {
+    document.title = 'Validação de cupons — ' + CONFIG.RESTAURANT_NAME;
+    const brand = $('#brand');
+    const src = CONFIG.LOGO_DATA_URI || CONFIG.LOGO_URL;
+    if (src) {
+      const img = document.createElement('img');
+      img.src = src;
+      img.alt = CONFIG.RESTAURANT_NAME;
+      brand.appendChild(img);
+    } else {
+      const ph = document.createElement('div');
+      ph.className = 'logo-placeholder';
+      ph.textContent = 'Seu logo aqui';
+      brand.appendChild(ph);
+    }
+    $('#code-prefix').textContent = CONFIG.COUPON_PREFIX + '-';
+  }
+
+  /* ---------- Login ---------- */
+  async function login(e) {
+    e.preventDefault();
+    const pass = $('#in-pass').value;
+    const msg = $('#login-msg');
+    if (!pass) { setMsg(msg, 'Digite a senha.'); return; }
+    const btn = $('#btn-login');
+    busy(btn, 'Entrando...');
+    setMsg(msg, '');
+    const r = await api({ action: 'cashierLogin', senha: pass });
+    busy(btn);
+    if (!r.ok) { setMsg(msg, r.error || 'Não foi possível entrar.'); return; }
+    state.senha = pass;
+    passSet(pass);
+    $('#in-pass').value = '';
+    goLookup();
+  }
+
+  function logout(message) {
+    state.senha = '';
+    state.coupon = null;
+    passSet('');
+    setMsg($('#login-msg'), message || '');
+    show('s-login');
+    focusHeading('s-login');
+  }
+
+  /* ---------- Consulta ---------- */
+  function goLookup(keepCode) {
+    state.coupon = null;
+    state.requestId = '';
+    if (!keepCode) $('#in-code').value = '';
+    setMsg($('#lookup-msg'), '');
+    updateLookupBtn();
+    show('s-lookup');
+    $('#in-code').focus();
+  }
+
+  function updateLookupBtn() {
+    $('#btn-lookup').disabled = codePart($('#in-code').value).length !== CODE_LEN;
+  }
+
+  async function lookup(e) {
+    e.preventDefault();
+    const part = codePart($('#in-code').value);
+    if (part.length !== CODE_LEN) return;
+    const cupom = CONFIG.COUPON_PREFIX + '-' + part;
+    const btn = $('#btn-lookup');
+    busy(btn, 'Consultando...');
+    setMsg($('#lookup-msg'), '');
+    const r = await api({ action: 'lookup', cupom: cupom, senha: state.senha });
+    busy(btn);
+    updateLookupBtn();
+    if (!r.ok) {
+      if (!handleAuthError(r)) setMsg($('#lookup-msg'), r.error || 'Não foi possível consultar o cupom.');
+      return;
+    }
+    state.coupon = r;
+    state.requestId = '';
+    renderCoupon();
+    show('s-coupon');
+    focusHeading('s-coupon');
+  }
+
+  function renderCoupon() {
+    const c = state.coupon;
+    const view = STATUS_VIEW[c.status] || { cls: 'expired', label: c.status || 'Status inválido' };
+    const st = $('#c-status');
+    st.className = 'status ' + view.cls;
+    st.textContent = view.label;
+    $('#c-code').textContent = c.cupom;
+    $('#c-prize').textContent = c.premio;
+    $('#c-name').textContent = c.nome || '—';
+    $('#c-issued').textContent = fmtDateTime(c.emitido);
+    $('#c-valid').textContent = fmtYmd(c.validoAte);
+
+    const pending = c.status === 'Pendente';
+    $('#btn-confirm').hidden = !pending;
+    const btnConfirm = $('#btn-confirm');
+    busy(btnConfirm);
+    const msgs = {
+      'Concluído': 'Cupom já utilizado. Este código não pode ser resgatado de novo.',
+      'Vencido': 'Cupom expirado. O prazo de validade já terminou.'
+    };
+    setMsg($('#coupon-msg'), pending ? '' : (msgs[c.status] || 'Este cupom não pode ser resgatado.'));
+  }
+
+  /* ---------- Resgate ---------- */
+  async function confirmRedeem() {
+    const c = state.coupon;
+    if (!c) return;
+    const btn = $('#btn-confirm');
+    busy(btn, 'Confirmando...');
+    setMsg($('#coupon-msg'), '');
+    // Mesmo requestId em todas as tentativas (inclusive o retry de api() e um novo toque após
+    // falha de rede): o backend usa isso para não tratar a repetição como uso duplicado.
+    if (!state.requestId) state.requestId = newRequestId();
+    const r = await api({ action: 'validate', cupom: c.cupom, senha: state.senha, requestId: state.requestId });
+    if (!r.network) state.requestId = '';
+    if (r.ok) {
+      c.status = 'Concluído';
+      renderCoupon();
+      $('#c-status').textContent = 'Resgatado agora';
+      setMsg($('#coupon-msg'), 'Resgate confirmado. Entregue o prêmio: ' + (r.premio || c.premio) + '.', true);
+      return;
+    }
+    busy(btn);
+    if (handleAuthError(r)) return;
+    // Mudou entre a consulta e a confirmação (ex.: resgatado em outro aparelho): reflete na tela.
+    if (r.error === 'Cupom já utilizado') { c.status = 'Concluído'; renderCoupon(); }
+    else if (r.error === 'Cupom expirado') { c.status = 'Vencido'; renderCoupon(); }
+    else setMsg($('#coupon-msg'), r.error || 'Não foi possível confirmar o resgate.');
+  }
+
+  /* ---------- Inicialização ---------- */
+  function init() {
+    initBrand();
+    $('#form-login').addEventListener('submit', login);
+    $('#btn-logout').addEventListener('click', () => logout());
+    const code = $('#in-code');
+    code.addEventListener('input', () => {
+      // Colar "UND-K7Q4" inteiro também funciona: o campo guarda só a parte do código.
+      const part = codePart(code.value);
+      if (code.value !== part) code.value = part;
+      updateLookupBtn();
+    });
+    $('#form-lookup').addEventListener('submit', lookup);
+    $('#btn-confirm').addEventListener('click', confirmRedeem);
+    $('#btn-back').addEventListener('click', () => goLookup());
+
+    state.senha = passGet();
+    if (state.senha) goLookup();
+    else { show('s-login'); focusHeading('s-login'); }
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>

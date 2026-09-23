@@ -154,13 +154,15 @@
   }
   .coupon small { display: block; font-size: .7rem; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; margin-bottom: 4px; }
   .coupon strong { display: block; font-size: clamp(2rem, 11vw, 2.8rem); font-weight: 900; letter-spacing: .08em; }
+  .coupon-meta {
+    margin: 14px 0 0; padding-top: 12px; border-top: 2px dashed rgba(0,0,0,.2);
+    display: grid; gap: 6px; text-align: left;
+  }
+  .coupon-meta div { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+  .coupon-meta dt { font-size: .66rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; opacity: .6; white-space: nowrap; }
+  .coupon-meta dd { margin: 0; font-size: .92rem; font-weight: 900; white-space: nowrap; }
   .prize-name { font-size: 1.7rem; }
-  .cashier { margin-top: 18px; padding-top: 10px; border-top: 2px solid rgba(0,0,0,.1); text-align: center; }
-  .cashier form { margin-top: 10px; text-align: left; }
-  .cashier form .btn { margin-top: 10px; min-height: 52px; }
   .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
-  .dim { opacity: .45; }
-  .validity { margin: 14px 0 0; text-align: center; font-size: .85rem; font-weight: 800; }
   .policy { margin: 14px 0 0; font-size: .68rem; line-height: 1.4; font-weight: 600; opacity: .6; text-align: center; }
 
   /* Rodapé fixo, presente em todas as telas */
@@ -307,25 +309,14 @@
         <div class="coupon">
           <small>Código do cupom</small>
           <strong id="coupon-code"></strong>
+          <dl class="coupon-meta">
+            <div><dt>Gerado em</dt><dd id="issued-at"></dd></div>
+            <div><dt id="valid-label">Válido até</dt><dd id="valid-until"></dd></div>
+          </dl>
         </div>
-        <div id="result-actions">
-          <button class="btn" id="btn-copy" type="button">Copiar código</button>
-          <p class="muted" style="margin:12px 0 0">Apresente este código ao garçom para resgatar o prêmio.</p>
-          <p class="validity" id="validity"></p>
-        </div>
+        <button class="btn" id="btn-copy" type="button">Copiar código</button>
+        <p class="muted" style="margin:12px 0 0;text-align:center">Mostre ou informe este código ao garçom ou no caixa para resgatar o prêmio.</p>
         <p class="sr" id="copy-status" role="status"></p>
-
-        <div class="msg ok" id="used-panel" hidden></div>
-
-        <div class="cashier" id="cashier">
-          <button class="link" id="cashier-toggle" type="button" aria-expanded="false">Uso do estabelecimento</button>
-          <form id="form-cashier" hidden novalidate>
-            <label for="in-pass">Senha</label>
-            <input id="in-pass" type="password" autocomplete="off" placeholder="Senha do estabelecimento">
-            <button class="btn" id="btn-validate" type="submit">Validar cupom</button>
-          </form>
-          <div class="msg" id="cashier-msg" role="alert" hidden style="margin:12px 0 0;text-align:left"></div>
-        </div>
         <p class="policy" id="policy"></p>
       </div>
     </section>
@@ -355,8 +346,9 @@
 
   const state = {
     nome: '', whatsapp: '', notas: [null, null, null], qIndex: 0,
-    comentario: '', prize: null, cupom: '', spun: false, used: false, emitido: '',
-    validateRequestId: ''
+    comentario: '', prize: null, cupom: '', spun: false,
+    emitido: '',     // YYYY-MM-DD (fuso do aparelho) — base do limite diário e da validade
+    emitidoEm: ''    // instante ISO da emissão, para mostrar data e hora no cupom
   };
 
   /* ---------- Utilidades ---------- */
@@ -385,7 +377,7 @@
   }
   // Guarda o último cupom emitido; `data` (YYYY-MM-DD, fuso do aparelho) é o dia do último spin bem-sucedido.
   function persist() {
-    storageSet({ data: state.emitido, cupom: state.cupom, premio: state.prize && state.prize.nome, nome: state.nome, used: state.used });
+    storageSet({ data: state.emitido, emitidoEm: state.emitidoEm, cupom: state.cupom, premio: state.prize && state.prize.nome, nome: state.nome });
   }
 
   /* ---------- Datas ---------- */
@@ -418,8 +410,8 @@
     if (!s || !s.cupom) return;
     state.cupom = s.cupom;
     state.nome = s.nome || '';
-    state.used = !!s.used;
     state.emitido = s.data || ymd(new Date());
+    state.emitidoEm = s.emitidoEm || '';   // cupons salvos antes desta versão só têm a data
     state.prize = { nome: s.premio || '' };
     state.spun = true;
     renderResult();
@@ -455,11 +447,6 @@
       if (r && typeof r.ok === 'boolean') return r;
     }
     return { ok: false, network: true, error: 'Não foi possível se comunicar com o servidor. Verifique sua internet e tente novamente.' };
-  }
-
-  function newRequestId() {
-    if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
-    return Date.now().toString(36) + '-' + Math.floor(rand() * 1e9).toString(36) + '-' + Math.floor(rand() * 1e9).toString(36);
   }
 
   /* ---------- Marca ---------- */
@@ -755,7 +742,11 @@
 
   /* ---------- 6. Resultado ---------- */
   function goResult() {
-    if (!state.emitido) state.emitido = ymd(new Date());
+    if (!state.emitido) {
+      const now = new Date();
+      state.emitido = ymd(now);
+      state.emitidoEm = now.toISOString();
+    }
     renderResult();
     persist();               // registra o dia do spin bem-sucedido (limite diário)
     show('s-result');
@@ -767,16 +758,13 @@
     const dias = CONFIG.COUPON_VALIDITY_DAYS;
     const ate = addDays(state.emitido, dias);           // válido até o fim desse dia
     const expirado = ymd(new Date()) > ymd(ate);
-    $('#validity').textContent = fill(expirado ? CONFIG.COUPON_EXPIRED_NOTICE : CONFIG.COUPON_VALIDITY_NOTICE, dias, ate);
+    const em = state.emitidoEm ? new Date(state.emitidoEm) : null;
+    $('#issued-at').textContent = em && !isNaN(em)
+      ? fmtBR(em) + ' às ' + pad(em.getHours()) + ':' + pad(em.getMinutes())
+      : fmtBR(addDays(state.emitido, 0));
+    $('#valid-label').textContent = expirado ? 'Expirou em' : 'Válido até';
+    $('#valid-until').textContent = fmtBR(ate);
     $('#policy').textContent = fill(CONFIG.COUPON_POLICY_TEXT, dias, ate);
-    renderUsed();
-  }
-
-  function renderUsed() {
-    $('#used-panel').hidden = !state.used;
-    $('#cashier').hidden = state.used;
-    $('#result-actions').classList.toggle('dim', state.used);
-    if (state.used) $('#used-panel').textContent = 'Cupom utilizado. Este código não pode ser usado novamente.';
   }
 
   async function copyCode() {
@@ -797,33 +785,6 @@
     btn.textContent = ok ? 'Código copiado' : 'Não foi possível copiar';
     $('#copy-status').textContent = btn.textContent;
     setTimeout(() => { btn.textContent = 'Copiar código'; }, 2000);
-  }
-
-  async function validateCoupon(e) {
-    e.preventDefault();
-    const pass = $('#in-pass').value;
-    const msg = $('#cashier-msg');
-    if (!pass) { setMsg(msg, 'Digite a senha.'); return; }
-    const btn = $('#btn-validate');
-    btn.disabled = true;
-    btn.textContent = 'Validando...';
-    setMsg(msg, '');
-    // Mesmo requestId em todas as tentativas (inclusive o retry de api()) até haver resposta
-    // definitiva: o backend usa isso para não tratar a nossa repetição como uso duplicado.
-    if (!state.validateRequestId) state.validateRequestId = newRequestId();
-    const r = await api({ action: 'validate', cupom: state.cupom, senha: pass, requestId: state.validateRequestId });
-    if (!r.network) state.validateRequestId = '';
-    btn.disabled = false;
-    btn.textContent = 'Validar cupom';
-    if (r.ok) {
-      state.used = true;
-      $('#in-pass').value = '';
-      persist();
-      renderUsed();
-      $('#used-panel').textContent = 'Cupom validado: ' + (r.premio || state.prize.nome) + (r.nome ? ' — ' + r.nome : '') + '.';
-    } else {
-      setMsg(msg, r.error || 'Não foi possível validar o cupom.');
-    }
   }
 
   /* ---------- Inicialização ---------- */
@@ -876,13 +837,6 @@
     $('#btn-reg-retry').addEventListener('click', retryRegister);
 
     $('#btn-copy').addEventListener('click', copyCode);
-    $('#cashier-toggle').addEventListener('click', e => {
-      const form = $('#form-cashier');
-      form.hidden = !form.hidden;
-      e.currentTarget.setAttribute('aria-expanded', String(!form.hidden));
-      if (!form.hidden) $('#in-pass').focus();
-    });
-    $('#form-cashier').addEventListener('submit', validateCoupon);
 
     show('s-welcome');
   }

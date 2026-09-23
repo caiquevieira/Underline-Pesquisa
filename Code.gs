@@ -12,7 +12,7 @@ var ADMIN_PASSWORD = '1234';          // Trocar por cliente — painel administr
 var SHEET_NAME = '';                  // Vazio = primeira aba da planilha
 var TIMEZONE = 'America/Sao_Paulo';
 // Validade do cupom em dias, contada a partir da data de emissão (Data/Hora da linha).
-// Vale até o fim do último dia. Manter igual a CONFIG.COUPON_VALIDITY_DAYS do index.html.
+// Vale até o fim do último dia. Manter igual a CONFIG.COUPON_VALIDITY_DAYS do config.js.
 var COUPON_VALIDITY_DAYS = 30;
 var STATUS_PENDING = 'Pendente';
 var STATUS_DONE = 'Concluído';
@@ -50,6 +50,8 @@ function doPost(e) {
     switch (body && body.action) {
       case 'register': return json_(register_(body));
       case 'validate': return json_(validate_(body));
+      case 'cashierLogin': return json_(cashierLogin_(body));
+      case 'lookup': return json_(lookup_(body));
       case 'admin': return json_(adminData_(body));
       case 'export': return json_(exportData_(body));
       default: return json_({ ok: false, error: 'Ação inválida' });
@@ -104,11 +106,48 @@ function register_(b) {
   return { ok: true };
 }
 
+function cashierAuthOk_(b) {
+  return String(b.senha == null ? '' : b.senha) === String(CASHIER_PASSWORD);
+}
+
+/** Login da página do caixa (caixa.html): só confere a senha, não lê a planilha. */
+function cashierLogin_(b) {
+  return cashierAuthOk_(b) ? { ok: true } : { ok: false, error: 'Senha incorreta' };
+}
+
+/**
+ * Consulta de cupom pela página do caixa, SEM alterar nada — o garçom confere prêmio,
+ * nome e validade antes de confirmar o resgate (que continua sendo o action "validate").
+ * `status` já vem resolvido: "Pendente" além do prazo volta como "Vencido", pela mesma
+ * regra de isExpired_ que o validate_ aplica.
+ */
+function lookup_(b) {
+  if (!cashierAuthOk_(b)) return { ok: false, error: 'Senha incorreta' };
+
+  var cupom = str_(b.cupom, 20).toUpperCase();
+  var sheet = getSheet_();
+  var rowIndex = findRow_(sheet, cupom);
+  if (!rowIndex) return { ok: false, error: 'Cupom não encontrado' };
+
+  var row = sheet.getRange(rowIndex, 1, 1, HEADERS.length).getValues()[0];
+  var status = String(row[COL.STATUS - 1]).trim();
+  var d = toDate_(row[COL.DATA - 1]);
+  if (status === STATUS_PENDING && isExpired_(row[COL.DATA - 1])) status = STATUS_EXPIRED;
+
+  return {
+    ok: true,
+    cupom: cupom,
+    premio: String(row[COL.PREMIO - 1]),
+    nome: String(row[COL.NOME - 1]),
+    emitido: d ? d.toISOString() : null,        // instante absoluto; o navegador converte pro fuso local
+    validoAte: d ? lastValidDay_(d) : null,     // 'yyyy-MM-dd' no fuso TIMEZONE (vale até o fim desse dia)
+    status: status
+  };
+}
+
 function validate_(b) {
   // Senha primeiro: quem não tem a senha não descobre quais cupons existem.
-  if (String(b.senha == null ? '' : b.senha) !== String(CASHIER_PASSWORD)) {
-    return { ok: false, error: 'Senha incorreta' };
-  }
+  if (!cashierAuthOk_(b)) return { ok: false, error: 'Senha incorreta' };
 
   var cupom = str_(b.cupom, 20).toUpperCase();
 
@@ -475,6 +514,12 @@ function isExpired_(issued) {
   var d = toDate_(issued);
   if (!d) return false;
   return dayNumber_(new Date()) - dayNumber_(d) > COUPON_VALIDITY_DAYS;
+}
+
+/** Último dia de validade ('yyyy-MM-dd', fuso TIMEZONE) — o complemento exato de isExpired_. */
+function lastValidDay_(issued) {
+  var last = new Date((dayNumber_(issued) + COUPON_VALIDITY_DAYS) * 86400000);
+  return Utilities.formatDate(last, 'UTC', 'yyyy-MM-dd');
 }
 
 function dayNumber_(d) {
